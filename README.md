@@ -9,7 +9,7 @@ This is a free, embeddable tool for jewelry designers and hobbyists.
 
 ```html
 <iframe 
-  src="https://yourusername.github.io/jewelry-cost-calculator" 
+  src="https://continentalbeads.github.io/jewelry-cost-calculator" 
   width="100%" 
   height="600" 
   frameborder="0" 
