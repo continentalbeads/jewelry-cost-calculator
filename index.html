@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jewelry Cost Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 2rem; }
+    label { display: block; margin-top: 1rem; }
+    input { width: 100%; padding: 0.5rem; margin-top: 0.25rem; }
+    .results { margin-top: 2rem; padding: 1rem; background-color: #f0f0f0; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Jewelry Design Cost Calculator</h1>
+  <form id="costCalculator">
+    <label>Material Cost ($):
+      <input type="number" id="materials" step="0.01" required />
+    </label>
+    <label>Labor Time (hours):
+      <input type="number" id="laborTime" step="0.1" required />
+    </label>
+    <label>Hourly Rate ($):
+      <input type="number" id="rate" step="0.1" required />
+    </label>
+    <label>Overhead Cost ($):
+      <input type="number" id="overhead" step="0.01" />
+    </label>
+    <label>Markup (%):
+      <input type="number" id="markup" step="1" value="200" />
+    </label>
+    <button type="submit">Calculate</button>
+  </form>
+  <div class="results" id="results" style="display:none;">
+    <p><strong>Wholesale Price:</strong> $<span id="wholesale"></span></p>
+    <p><strong>Retail Price:</strong> $<span id="retail"></span></p>
+  </div>
+  <script>
+    document.getElementById('costCalculator').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const materials = parseFloat(document.getElementById('materials').value);
+      const laborTime = parseFloat(document.getElementById('laborTime').value);
+      const rate = parseFloat(document.getElementById('rate').value);
+      const overhead = parseFloat(document.getElementById('overhead').value || 0);
+      const markup = parseFloat(document.getElementById('markup').value) / 100;
+
+      const wholesale = materials + (laborTime * rate) + overhead;
+      const retail = wholesale * (1 + markup);
+
+      document.getElementById('wholesale').textContent = wholesale.toFixed(2);
+      document.getElementById('retail').textContent = retail.toFixed(2);
+      document.getElementById('results').style.display = 'block';
+    });
+  </script>
+</body>
+</html>
