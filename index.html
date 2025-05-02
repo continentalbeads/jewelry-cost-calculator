@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Jewelry Cost Calculator</title>
   <style>
     body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 2rem; }
@@ -34,6 +34,7 @@
   <div class="results" id="results" style="display:none;">
     <p><strong>Wholesale Price:</strong> $<span id="wholesale"></span></p>
     <p><strong>Retail Price:</strong> $<span id="retail"></span></p>
+    <p><strong>Profit Margin:</strong> <span id="margin"></span>%</p>
   </div>
   <script>
     document.getElementById('costCalculator').addEventListener('submit', function(e) {
@@ -46,9 +47,11 @@
 
       const wholesale = materials + (laborTime * rate) + overhead;
       const retail = wholesale * (1 + markup);
+      const margin = ((retail - wholesale) / retail) * 100;
 
       document.getElementById('wholesale').textContent = wholesale.toFixed(2);
       document.getElementById('retail').textContent = retail.toFixed(2);
+      document.getElementById('margin').textContent = margin.toFixed(1);
       document.getElementById('results').style.display = 'block';
     });
   </script>

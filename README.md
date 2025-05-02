@@ -3,13 +3,13 @@
 This is a free, embeddable tool for jewelry designers and hobbyists.
 
 ## 🚀 Live Demo
-(Coming Soon on GitHub Pages)
+[View the Live Tool Here](https://continentalbeads.github.io/jewelry-cost-calculator/)
 
 ## 💾 How to Embed This Tool
 
 ```html
 <iframe 
-  src="https://continentalbeads.github.io/jewelry-cost-calculator" 
+  src="https://continentalbeads.github.io/jewelry-cost-calculator/" 
   width="100%" 
   height="600" 
   frameborder="0" 
