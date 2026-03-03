@@ -1,59 +1,470 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Jewelry Cost Calculator</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 2rem; }
-    label { display: block; margin-top: 1rem; }
-    input { width: 100%; padding: 0.5rem; margin-top: 0.25rem; }
-    .results { margin-top: 2rem; padding: 1rem; background-color: #f0f0f0; border-radius: 5px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jewelry Design Cost Calculator — Price Your Handmade Creations</title>
+<meta name="description" content="Free jewelry pricing calculator. Itemize materials, factor in precious metals at live spot prices, compare beginner to professional pricing strategies. By Continental Bead Suppliers.">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#c9a96e;--bg:#0f0f0f;--card:#1a1a1a;--border:#2a2a2a;
+  --text:#e8e4df;--dim:#777;--green:#22c55e;--red:#dc2626;
+  --font:'Instrument Sans','DM Sans',system-ui,sans-serif;
+  --mono:'DM Mono',monospace;
+}
+body{
+  min-height:100vh;
+  background:linear-gradient(145deg,var(--bg) 0%,#1a1a2e 50%,var(--bg) 100%);
+  font-family:var(--font);color:var(--text);
+  padding:24px 16px 60px;line-height:1.5;
+}
+.wrap{max-width:800px;margin:0 auto}
+.header{text-align:center;margin-bottom:32px}
+.header .tag{font-size:11px;font-family:var(--mono);letter-spacing:.15em;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
+.header h1{font-size:28px;font-weight:700;color:#fff;margin:0 0 6px;line-height:1.25}
+.header p{font-size:14px;color:var(--dim);margin:0}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px}
+.card.highlight{background:linear-gradient(135deg,var(--card),#1f1f2e);border-color:rgba(201,169,110,.3)}
+.section-title{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.section-title .icon{font-size:18px}
+.section-title .text{font-size:15px;font-weight:700;color:var(--text)}
+.note{font-size:12px;color:var(--dim);margin:0 0 12px;line-height:1.5}
+label,.lbl{font-size:11px;font-family:var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px}
+input[type="number"],input[type="text"],.input{
+  width:100%;padding:8px 10px;font-size:13px;font-family:var(--font);
+  background:#111;border:1px solid var(--border);border-radius:6px;
+  color:var(--text);outline:none;transition:border-color .15s;
+}
+input:focus{border-color:var(--gold)}
+input[type="range"]{accent-color:var(--gold);width:100%}
+.mat-row{display:grid;grid-template-columns:1fr 60px 80px 80px 32px;gap:8px;align-items:end;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #222}
+.mat-row:last-of-type{border-bottom:none}
+.mat-item{position:relative}
+.subtotal-val{padding:8px 10px;font-family:var(--mono);color:var(--gold);font-weight:600;text-align:right;font-size:13px}
+.btn-remove{width:28px;height:36px;border:none;border-radius:4px;background:transparent;color:#555;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.btn-remove:hover{color:var(--red)}
+.btn-add{padding:6px 14px;font-size:12px;font-weight:600;border:1px dashed var(--border);border-radius:6px;background:transparent;color:var(--dim);cursor:pointer;font-family:var(--font)}
+.btn-add:hover{border-color:var(--gold);color:var(--gold)}
+.btn-cbs{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:transparent;color:var(--gold);border:1px solid rgba(201,169,110,.3);border-radius:4px;font-size:10px;padding:2px 6px;cursor:pointer;font-family:var(--mono);font-weight:600}
+.btn-cbs:hover,.btn-cbs.active{background:var(--gold);color:var(--bg)}
+.catalog-dropdown{position:absolute;z-index:50;background:#1a1a1a;border:1px solid rgba(201,169,110,.3);border-radius:8px;padding:12px;width:340px;max-height:280px;overflow-y:auto;margin-top:4px;box-shadow:0 8px 32px rgba(0,0,0,.5);left:0;top:100%}
+.catalog-filters{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap}
+.catalog-filters button{font-size:10px;padding:3px 8px;border-radius:4px;border:none;background:transparent;color:var(--dim);cursor:pointer;font-family:var(--mono)}
+.catalog-filters button.active{background:rgba(201,169,110,.15);color:var(--gold)}
+.catalog-item{padding:6px 8px;border-radius:4px;cursor:pointer;font-size:12px;display:flex;justify-content:space-between;align-items:center}
+.catalog-item:hover{background:#252525}
+.catalog-item .cat{color:var(--gold);font-size:10px;margin-right:6px}
+.catalog-item .price{font-family:var(--mono);color:var(--gold);font-size:11px}
+.row-total{text-align:right;margin-top:10px;font-family:var(--mono);font-size:13px}
+.row-total span{color:var(--gold);font-weight:700}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+.metal-box{padding:12px;background:#111;border-radius:8px;border:1px solid var(--border)}
+.metal-box .title{font-size:13px;font-weight:600;margin-bottom:10px;color:#ccc}
+.metal-calc{margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--gold)}
+.slider-row{display:flex;align-items:center;gap:12px;margin-top:6px}
+.slider-val{font-family:var(--mono);font-size:14px;color:var(--gold);font-weight:700;min-width:40px}
+.slider-note{font-size:10px;color:var(--dim);margin-top:2px}
+.btn-fetch{padding:7px 14px;font-size:11px;font-weight:600;border:none;border-radius:6px;background:var(--gold);color:var(--bg);cursor:pointer;font-family:var(--font)}
+.btn-fetch:hover{opacity:.85}
+.btn-fetch:disabled{opacity:.5;cursor:wait}
+.fetch-date{font-size:10px;color:var(--dim);font-family:var(--mono)}
+.summary-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.summary-items{display:flex;gap:20px;flex-wrap:wrap}
+.summary-item{text-align:center}
+.summary-item .label{font-size:10px;font-family:var(--mono);color:var(--dim);text-transform:uppercase}
+.summary-item .val{font-size:14px;font-family:var(--mono);font-weight:600;color:var(--text)}
+.summary-total .label{font-size:10px;font-family:var(--mono);color:var(--dim);text-transform:uppercase}
+.summary-total .val{font-size:26px;font-weight:700;font-family:var(--mono);color:var(--gold)}
+.tiers{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px}
+.tier{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 16px;position:relative;overflow:hidden}
+.tier.featured{background:linear-gradient(145deg,#1f1f2e,var(--card));border:2px solid var(--gold)}
+.tier-badge{position:absolute;top:0;right:0;background:var(--gold);color:var(--bg);font-size:9px;font-weight:700;font-family:var(--mono);padding:3px 10px;border-bottom-left-radius:6px;text-transform:uppercase;letter-spacing:.08em}
+.tier-name{font-size:14px;font-weight:700;margin-bottom:2px}
+.tier-desc{font-size:10px;color:var(--dim);margin-bottom:16px;line-height:1.4}
+.tier-label{font-size:10px;font-family:var(--mono);color:var(--dim);text-transform:uppercase;margin-bottom:4px}
+.tier-price{font-size:28px;font-weight:700;font-family:var(--mono);margin-bottom:12px}
+.tier-subs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tier-sub{background:#111;border-radius:6px;padding:8px 10px;text-align:center}
+.tier-sub .sub-label{font-size:9px;font-family:var(--mono);color:var(--dim);text-transform:uppercase}
+.tier-sub .sub-val{font-size:15px;font-weight:700;font-family:var(--mono)}
+.tier-sub .sub-note{font-size:9px;font-family:var(--mono);color:var(--dim)}
+.cta{text-align:center;padding:8px 0}
+.cta h3{font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px}
+.cta p{font-size:12px;color:var(--dim);margin-bottom:14px;line-height:1.5}
+.cta a{display:inline-block;padding:10px 28px;font-size:13px;font-weight:700;background:var(--gold);color:var(--bg);border-radius:6px;text-decoration:none;font-family:var(--font)}
+.cta a:hover{opacity:.88}
+.footer{text-align:center;font-size:10px;color:var(--dim);font-family:var(--mono);margin-top:12px}
+.footer a{color:var(--gold);text-decoration:none}
+@media(max-width:640px){
+  .mat-row{grid-template-columns:1fr 50px 70px 70px 28px;gap:4px}
+  .grid-2,.grid-3,.grid-4,.tiers{grid-template-columns:1fr}
+  .summary-bar{flex-direction:column;text-align:center}
+  .catalog-dropdown{width:calc(100vw - 64px)}
+  .header h1{font-size:22px}
+}
+</style>
 </head>
 <body>
-  <h1>Jewelry Design Cost Calculator</h1>
-  <form id="costCalculator">
-    <label>Material Cost ($):
-      <input type="number" id="materials" step="0.01" required />
-    </label>
-    <label>Labor Time (hours):
-      <input type="number" id="laborTime" step="0.1" required />
-    </label>
-    <label>Hourly Rate ($):
-      <input type="number" id="rate" step="0.1" required />
-    </label>
-    <label>Overhead Cost ($):
-      <input type="number" id="overhead" step="0.01" />
-    </label>
-    <label>Markup (%):
-      <input type="number" id="markup" step="1" value="200" />
-    </label>
-    <button type="submit">Calculate</button>
-  </form>
-  <div class="results" id="results" style="display:none;">
-    <p><strong>Wholesale Price:</strong> $<span id="wholesale"></span></p>
-    <p><strong>Retail Price:</strong> $<span id="retail"></span></p>
-    <p><strong>Profit Margin:</strong> <span id="margin"></span>%</p>
+<div class="wrap">
+  <div class="header">
+    <div class="tag">Continental Beads · Free Tool</div>
+    <h1>Jewelry Design Cost Calculator</h1>
+    <p>Price your handmade jewelry with confidence. Itemize materials, factor in precious metals at live spot prices, and compare pricing strategies side by side.</p>
   </div>
-  <script>
-    document.getElementById('costCalculator').addEventListener('submit', function(e) {
-      e.preventDefault();
-      const materials = parseFloat(document.getElementById('materials').value);
-      const laborTime = parseFloat(document.getElementById('laborTime').value);
-      const rate = parseFloat(document.getElementById('rate').value);
-      const overhead = parseFloat(document.getElementById('overhead').value || 0);
-      const markup = parseFloat(document.getElementById('markup').value) / 100;
 
-      const wholesale = materials + (laborTime * rate) + overhead;
-      const retail = wholesale * (1 + markup);
-      const margin = ((retail - wholesale) / retail) * 100;
+  <!-- MATERIALS -->
+  <div class="card" id="materialsCard">
+    <div class="section-title"><span class="icon">📦</span><span class="text">Materials & Components</span></div>
+    <p class="note">Add each component. Pick from the Continental Beads catalog or enter custom items.</p>
+    <div id="materialsHeader" style="display:grid;grid-template-columns:1fr 60px 80px 80px 32px;gap:8px;margin-bottom:6px">
+      <span class="lbl">Item</span><span class="lbl" style="text-align:center">Qty</span><span class="lbl" style="text-align:right">Unit $</span><span class="lbl" style="text-align:right">Subtotal</span><span></span>
+    </div>
+    <div id="materialsBody"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <button class="btn-add" onclick="addRow()">+ Add Material</button>
+      <div class="row-total">Materials: <span id="materialsTotalDisplay">$0.00</span></div>
+    </div>
+  </div>
 
-      document.getElementById('wholesale').textContent = wholesale.toFixed(2);
-      document.getElementById('retail').textContent = retail.toFixed(2);
-      document.getElementById('margin').textContent = margin.toFixed(1);
-      document.getElementById('results').style.display = 'block';
-    });
-  </script>
+  <!-- PRECIOUS METALS -->
+  <div class="card">
+    <div class="section-title"><span class="icon">✨</span><span class="text">Precious Metals (Sterling Silver & Gold)</span></div>
+    <p class="note">For components priced by weight. Enter weight in grams — the calculator uses troy ounce spot prices.</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn-fetch" id="btnFetch" onclick="fetchMetalPrices()">Fetch Live Spot Prices</button>
+      <span class="fetch-date" id="fetchDate"></span>
+    </div>
+    <div class="grid-2">
+      <div class="metal-box">
+        <div class="title">Silver</div>
+        <div style="margin-bottom:8px"><label class="lbl">Spot Price ($/troy oz)</label><input type="number" step="0.01" id="silverSpot" placeholder="e.g. 32.50" oninput="calculate()"></div>
+        <div><label class="lbl">Weight (grams)</label><input type="number" step="0.1" id="silverWeight" placeholder="0" oninput="calculate()"></div>
+        <div class="metal-calc" id="silverCalc"></div>
+      </div>
+      <div class="metal-box">
+        <div class="title">Gold</div>
+        <div style="margin-bottom:8px"><label class="lbl">Spot Price ($/troy oz)</label><input type="number" step="0.01" id="goldSpot" placeholder="e.g. 2950.00" oninput="calculate()"></div>
+        <div><label class="lbl">Weight (grams)</label><input type="number" step="0.1" id="goldWeight" placeholder="0" oninput="calculate()"></div>
+        <div class="metal-calc" id="goldCalc"></div>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <label class="lbl">Artistry Markup on Melt Value</label>
+      <div class="slider-row">
+        <input type="range" min="1" max="5" step="0.1" value="2.5" id="metalMarkup" oninput="calculate()">
+        <span class="slider-val" id="metalMarkupVal">2.5x</span>
+      </div>
+      <div class="slider-note">Industry standard: 2.5–3x melt value for sterling silver artisan work</div>
+    </div>
+    <div class="row-total" style="margin-top:10px">Precious Metals: <span id="metalsTotalDisplay">$0.00</span></div>
+  </div>
+
+  <!-- LABOR -->
+  <div class="card">
+    <div class="section-title"><span class="icon">⏱️</span><span class="text">Labor</span></div>
+    <div class="grid-3">
+      <div><label class="lbl">Hours</label><input type="number" min="0" id="laborHours" placeholder="0" oninput="calculate()"></div>
+      <div><label class="lbl">Minutes</label><input type="number" min="0" max="59" id="laborMinutes" placeholder="0" oninput="calculate()"></div>
+      <div><label class="lbl">Hourly Rate ($)</label><input type="number" min="0" step="0.5" id="hourlyRate" value="15" oninput="calculate()"></div>
+    </div>
+    <div class="row-total">Labor: <span id="laborTotalDisplay">$0.00</span></div>
+  </div>
+
+  <!-- OVERHEAD -->
+  <div class="card">
+    <div class="section-title"><span class="icon">📋</span><span class="text">Overhead (per piece)</span></div>
+    <div class="grid-4">
+      <div><label class="lbl">Packaging</label><input type="number" min="0" step="0.25" id="packaging" value="1.50" oninput="calculate()"></div>
+      <div><label class="lbl">Tools / Equipment</label><input type="number" min="0" step="0.25" id="toolsCost" placeholder="0" oninput="calculate()"></div>
+      <div><label class="lbl">Booth / Listing Fees</label><input type="number" min="0" step="0.25" id="boothFees" placeholder="0" oninput="calculate()"></div>
+      <div><label class="lbl">Other</label><input type="number" min="0" step="0.25" id="otherOverhead" placeholder="0" oninput="calculate()"></div>
+    </div>
+    <div class="row-total">Overhead: <span id="overheadTotalDisplay">$0.00</span></div>
+  </div>
+
+  <!-- COST SUMMARY -->
+  <div class="card highlight">
+    <div class="summary-bar">
+      <div class="summary-items">
+        <div class="summary-item"><div class="label">Materials</div><div class="val" id="sumMaterials">$0.00</div></div>
+        <div class="summary-item"><div class="label">Metals</div><div class="val" id="sumMetals">$0.00</div></div>
+        <div class="summary-item"><div class="label">Labor</div><div class="val" id="sumLabor">$0.00</div></div>
+        <div class="summary-item"><div class="label">Overhead</div><div class="val" id="sumOverhead">$0.00</div></div>
+      </div>
+      <div class="summary-total" style="text-align:right">
+        <div class="label">Total Cost</div>
+        <div class="val" id="totalCost">$0.00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRICING TIERS -->
+  <div class="section-title" style="margin-bottom:12px"><span class="icon">💰</span><span class="text">Pricing Strategy — Choose Your Tier</span></div>
+  <div class="tiers" id="tiersContainer"></div>
+
+  <!-- CTA -->
+  <div class="card highlight">
+    <div class="cta">
+      <h3>Ready to stock up on supplies?</h3>
+      <p>Continental Beads carries 1,000+ chains, findings, beads, and charms — all nickel-free and hypoallergenic. Wholesale accounts get 50% off retail pricing.</p>
+      <a href="https://www.continentalbeadsuppliers.com/collections/all" target="_blank" rel="noopener noreferrer">Shop Continental Beads →</a>
+    </div>
+  </div>
+
+  <div class="footer">
+    Tool provided by <a href="https://www.continentalbeadsuppliers.com" target="_blank" rel="noopener noreferrer">Continental Bead Suppliers</a> · Las Vegas, NV
+  </div>
+</div>
+
+<script>
+const CATALOG=[
+{cat:"Chain",name:"Cable Chain (per ft)",price:1.50,unit:"ft"},
+{cat:"Chain",name:"Curb Chain (per ft)",price:1.75,unit:"ft"},
+{cat:"Chain",name:"Box Chain (per ft)",price:2.00,unit:"ft"},
+{cat:"Chain",name:"Figaro Chain (per ft)",price:1.85,unit:"ft"},
+{cat:"Chain",name:"Rope Chain (per ft)",price:2.25,unit:"ft"},
+{cat:"Chain",name:"Snake Chain (per ft)",price:2.10,unit:"ft"},
+{cat:"Chain",name:"Stainless Steel Chain (per ft)",price:1.25,unit:"ft"},
+{cat:"Chain",name:"Waterproof PVD Gold Chain (per ft)",price:3.50,unit:"ft"},
+{cat:"Clasp",name:"Lobster Clasp (12mm)",price:0.35,unit:"pc"},
+{cat:"Clasp",name:"Lobster Clasp (16mm)",price:0.45,unit:"pc"},
+{cat:"Clasp",name:"Toggle Clasp Set",price:0.85,unit:"pc"},
+{cat:"Clasp",name:"Magnetic Clasp",price:1.25,unit:"pc"},
+{cat:"Clasp",name:"Box Clasp",price:0.95,unit:"pc"},
+{cat:"Clasp",name:"S/S Lobster Clasp",price:0.60,unit:"pc"},
+{cat:"Bead",name:"Pewter Charm Bead",price:0.75,unit:"pc"},
+{cat:"Bead",name:"Stainless Steel Bead (6mm)",price:0.40,unit:"pc"},
+{cat:"Bead",name:"Waterproof Gold Bead",price:0.85,unit:"pc"},
+{cat:"Bead",name:"Crystal Bicone (4mm)",price:0.15,unit:"pc"},
+{cat:"Bead",name:"Natural Stone Pendant",price:2.50,unit:"pc"},
+{cat:"Bead",name:"Semi-Precious Gemstone Bead",price:0.60,unit:"pc"},
+{cat:"Finding",name:"Jump Ring (6mm, 50pk)",price:2.50,unit:"pk"},
+{cat:"Finding",name:"Head Pins (2in, 50pk)",price:3.00,unit:"pk"},
+{cat:"Finding",name:"Eye Pins (2in, 50pk)",price:3.00,unit:"pk"},
+{cat:"Finding",name:"Bead Cap with Loop",price:0.30,unit:"pc"},
+{cat:"Finding",name:"Crimp Beads (100pk)",price:2.25,unit:"pk"},
+{cat:"Finding",name:"Earwire Pair (French Hook)",price:0.65,unit:"pr"},
+{cat:"Finding",name:"Connector Link",price:0.40,unit:"pc"},
+{cat:"Finding",name:"Cord End Cap",price:0.35,unit:"pc"},
+{cat:"Cord",name:"Cotton Cord (per yd)",price:0.50,unit:"yd"},
+{cat:"Cord",name:"Leather Cord (per yd)",price:1.25,unit:"yd"},
+{cat:"Cord",name:"Beading Wire (per ft)",price:0.35,unit:"ft"},
+];
+const CATEGORIES=[...new Set(CATALOG.map(c=>c.cat))];
+const TIERS=[
+{label:"Beginner",markup:2.5,wholesale:1.5,desc:"Starting out, building a customer base"},
+{label:"Intermediate",markup:3.5,wholesale:2.0,desc:"Established brand, consistent quality"},
+{label:"Professional",markup:5.0,wholesale:2.5,desc:"Premium brand, high demand, unique designs"},
+];
+
+let rows=[];
+let rowId=0;
+let openCatalog=null;
+let catalogFilter="All";
+
+function fmt(n){return n.toFixed(2)}
+function fmtUSD(n){return"$"+n.toFixed(2)}
+
+function newRow(){return{id:++rowId,name:"",qty:1,unitPrice:0,unit:"pc"}}
+
+function addRow(){
+  rows.push(newRow());
+  renderMaterials();
+  calculate();
+}
+
+function removeRow(id){
+  if(rows.length<=1)return;
+  rows=rows.filter(r=>r.id!==id);
+  renderMaterials();
+  calculate();
+}
+
+function selectCatalogItem(rowId,catIdx){
+  const item=CATALOG[catIdx];
+  const row=rows.find(r=>r.id===rowId);
+  if(row&&item){
+    row.name=item.name;
+    row.unitPrice=item.price;
+    row.unit=item.unit;
+  }
+  openCatalog=null;
+  renderMaterials();
+  calculate();
+}
+
+function toggleCatalog(rowId){
+  openCatalog=openCatalog===rowId?null:rowId;
+  catalogFilter="All";
+  renderMaterials();
+}
+
+function setCatalogFilter(f){
+  catalogFilter=f;
+  renderCatalogDropdown();
+}
+
+function renderCatalogDropdown(){
+  const el=document.getElementById("catalogDropdown");
+  if(!el)return;
+  const filtered=catalogFilter==="All"?CATALOG:CATALOG.filter(c=>c.cat===catalogFilter);
+  let html='<div class="catalog-filters">';
+  ["All",...CATEGORIES].forEach(c=>{
+    html+=`<button class="${catalogFilter===c?'active':''}" onclick="setCatalogFilter('${c}')">${c}</button>`;
+  });
+  html+='</div>';
+  filtered.forEach((item)=>{
+    const realIdx=CATALOG.indexOf(item);
+    html+=`<div class="catalog-item" onclick="selectCatalogItem(${openCatalog},${realIdx})"><span><span class="cat">${item.cat}</span>${item.name}</span><span class="price">$${fmt(item.price)}/${item.unit}</span></div>`;
+  });
+  el.innerHTML=html;
+}
+
+function renderMaterials(){
+  const body=document.getElementById("materialsBody");
+  let html="";
+  rows.forEach(row=>{
+    const sub=(parseFloat(row.qty)||0)*(parseFloat(row.unitPrice)||0);
+    html+=`<div class="mat-row">`;
+    html+=`<div class="mat-item"><input type="text" value="${row.name.replace(/"/g,'&quot;')}" placeholder="Type or pick from catalog →" oninput="rows.find(r=>r.id===${row.id}).name=this.value;calculate()" onfocus="rows.find(r=>r.id===${row.id}).source='custom'"><button class="btn-cbs ${openCatalog===row.id?'active':''}" onclick="toggleCatalog(${row.id})">CBS</button>`;
+    if(openCatalog===row.id){
+      html+=`<div class="catalog-dropdown" id="catalogDropdown"></div>`;
+    }
+    html+=`</div>`;
+    html+=`<div><input type="number" min="0" step="0.5" value="${row.qty}" style="text-align:center" oninput="rows.find(r=>r.id===${row.id}).qty=this.value;calculate()"></div>`;
+    html+=`<div><input type="number" min="0" step="0.01" value="${row.unitPrice}" style="text-align:right" oninput="rows.find(r=>r.id===${row.id}).unitPrice=this.value;calculate()"></div>`;
+    html+=`<div class="subtotal-val">${fmtUSD(sub)}</div>`;
+    html+=`<div><button class="btn-remove" onclick="removeRow(${row.id})">×</button></div>`;
+    html+=`</div>`;
+  });
+  body.innerHTML=html;
+  if(openCatalog)renderCatalogDropdown();
+}
+
+function calculate(){
+  // Materials
+  const materialTotal=rows.reduce((s,r)=>s+(parseFloat(r.qty)||0)*(parseFloat(r.unitPrice)||0),0);
+  document.getElementById("materialsTotalDisplay").textContent=fmtUSD(materialTotal);
+
+  // Metals
+  const mk=parseFloat(document.getElementById("metalMarkup").value)||1;
+  document.getElementById("metalMarkupVal").textContent=mk.toFixed(1)+"x";
+
+  const sSpot=parseFloat(document.getElementById("silverSpot").value)||0;
+  const sWeight=parseFloat(document.getElementById("silverWeight").value)||0;
+  const sMelt=(sWeight/31.1035)*sSpot;
+  const sVal=sMelt*mk;
+  document.getElementById("silverCalc").textContent=sVal>0?`Melt: ${fmtUSD(sMelt)} → With ${mk.toFixed(1)}x markup: ${fmtUSD(sVal)}`:"";
+
+  const gSpot=parseFloat(document.getElementById("goldSpot").value)||0;
+  const gWeight=parseFloat(document.getElementById("goldWeight").value)||0;
+  const gMelt=(gWeight/31.1035)*gSpot;
+  const gVal=gMelt*mk;
+  document.getElementById("goldCalc").textContent=gVal>0?`Melt: ${fmtUSD(gMelt)} → With ${mk.toFixed(1)}x markup: ${fmtUSD(gVal)}`:"";
+
+  const metalTotal=sVal+gVal;
+  document.getElementById("metalsTotalDisplay").textContent=fmtUSD(metalTotal);
+
+  // Labor
+  const lh=parseFloat(document.getElementById("laborHours").value)||0;
+  const lm=parseFloat(document.getElementById("laborMinutes").value)||0;
+  const hr=parseFloat(document.getElementById("hourlyRate").value)||0;
+  const laborTotal=(lh+lm/60)*hr;
+  document.getElementById("laborTotalDisplay").textContent=fmtUSD(laborTotal);
+
+  // Overhead
+  const pkg=parseFloat(document.getElementById("packaging").value)||0;
+  const tools=parseFloat(document.getElementById("toolsCost").value)||0;
+  const booth=parseFloat(document.getElementById("boothFees").value)||0;
+  const other=parseFloat(document.getElementById("otherOverhead").value)||0;
+  const overheadTotal=pkg+tools+booth+other;
+  document.getElementById("overheadTotalDisplay").textContent=fmtUSD(overheadTotal);
+
+  // Total
+  const totalCost=materialTotal+metalTotal+laborTotal+overheadTotal;
+  document.getElementById("sumMaterials").textContent=fmtUSD(materialTotal);
+  document.getElementById("sumMetals").textContent=fmtUSD(metalTotal);
+  document.getElementById("sumLabor").textContent=fmtUSD(laborTotal);
+  document.getElementById("sumOverhead").textContent=fmtUSD(overheadTotal);
+  document.getElementById("totalCost").textContent=fmtUSD(totalCost);
+
+  // Update subtotals in material rows
+  document.querySelectorAll(".subtotal-val").forEach((el,i)=>{
+    if(rows[i]){
+      el.textContent=fmtUSD((parseFloat(rows[i].qty)||0)*(parseFloat(rows[i].unitPrice)||0));
+    }
+  });
+
+  // Tiers
+  let tiersHtml="";
+  TIERS.forEach((tier,i)=>{
+    const retail=totalCost*tier.markup;
+    const wholesale=totalCost*tier.wholesale;
+    const profit=retail-totalCost;
+    const margin=retail>0?((profit/retail)*100):0;
+    const featured=i===1;
+    tiersHtml+=`<div class="tier${featured?' featured':''}">`;
+    if(featured)tiersHtml+=`<div class="tier-badge">Recommended</div>`;
+    tiersHtml+=`<div class="tier-name" style="color:${featured?'var(--gold)':'var(--text)'}">${tier.label}</div>`;
+    tiersHtml+=`<div class="tier-desc">${tier.desc}</div>`;
+    tiersHtml+=`<div class="tier-label">Retail (${tier.markup}x markup)</div>`;
+    tiersHtml+=`<div class="tier-price" style="color:${featured?'var(--gold)':'var(--text)'}">${fmtUSD(retail)}</div>`;
+    tiersHtml+=`<div class="tier-subs">`;
+    tiersHtml+=`<div class="tier-sub"><div class="sub-label">Wholesale</div><div class="sub-val" style="color:var(--text)">${fmtUSD(wholesale)}</div><div class="sub-note">${tier.wholesale}x cost</div></div>`;
+    tiersHtml+=`<div class="tier-sub"><div class="sub-label">Profit</div><div class="sub-val" style="color:var(--green)">${fmtUSD(profit)}</div><div class="sub-note">${fmt(margin)}% margin</div></div>`;
+    tiersHtml+=`</div></div>`;
+  });
+  document.getElementById("tiersContainer").innerHTML=tiersHtml;
+}
+
+async function fetchMetalPrices(){
+  const btn=document.getElementById("btnFetch");
+  const dateEl=document.getElementById("fetchDate");
+  btn.disabled=true;btn.textContent="Fetching...";
+  try{
+    const r=await fetch("https://api.metals.dev/v1/latest?api_key=demo&currency=USD&unit=toz");
+    const d=await r.json();
+    if(d.metals){
+      if(d.metals.silver)document.getElementById("silverSpot").value=fmt(d.metals.silver);
+      if(d.metals.gold)document.getElementById("goldSpot").value=fmt(d.metals.gold);
+      dateEl.textContent="Updated: "+new Date().toLocaleString();
+      calculate();
+      btn.disabled=false;btn.textContent="Fetch Live Spot Prices";
+      return;
+    }
+  }catch(e){}
+  try{
+    const r2=await fetch("https://metals-api.com/api/latest?access_key=demo&base=USD&symbols=XAG,XAU");
+    const d2=await r2.json();
+    if(d2.rates){
+      if(d2.rates.XAG)document.getElementById("silverSpot").value=fmt(1/d2.rates.XAG);
+      if(d2.rates.XAU)document.getElementById("goldSpot").value=fmt(1/d2.rates.XAU);
+      dateEl.textContent="Updated: "+new Date().toLocaleString();
+      calculate();
+      btn.disabled=false;btn.textContent="Fetch Live Spot Prices";
+      return;
+    }
+  }catch(e){}
+  dateEl.textContent="Could not fetch — enter spot prices manually";
+  btn.disabled=false;btn.textContent="Fetch Live Spot Prices";
+}
+
+// Close catalog when clicking outside
+document.addEventListener("click",function(e){
+  if(openCatalog&&!e.target.closest(".mat-item")){
+    openCatalog=null;
+    renderMaterials();
+  }
+});
+
+// Init
+rows=[newRow(),newRow(),newRow()];
+renderMaterials();
+calculate();
+</script>
 </body>
 </html>
