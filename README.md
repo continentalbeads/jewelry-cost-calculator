@@ -10,10 +10,7 @@ This is a free, embeddable tool for jewelry designers and hobbyists.
 ```html
 <iframe 
   src="https://continentalbeads.github.io/jewelry-cost-calculator/" 
-  width="100%" 
-  height="600" 
-  frameborder="0" 
-  style="border: 1px solid #ccc; border-radius: 8px;">
+ style="border:none;width:100%;min-height:100vh"
 </iframe>
 <p style="font-size: 0.9rem; text-align: center;">
   Tool provided by <a href="https://www.continentalbeadsuppliers.com" target="_blank" rel="noopener">Continental Bead Suppliers</a>
