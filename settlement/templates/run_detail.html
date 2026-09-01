@@ -14,6 +14,16 @@
   adjustments from a consignor's ledger page.
 {% endif %}</p>
 
+{% if draft and no_fee_count %}
+<div class="banner flash-error">
+  ⚠ {{ no_fee_count }} line{{ 's' if no_fee_count != 1 }} in this run {{ 'have' if no_fee_count != 1 else 'has' }}
+  <strong>no fees at all</strong> — usually the line's channel doesn't match any fee-schedule
+  channel. Fix the channel on the line and click its <em>↻ schedule</em> button, or fix the
+  channels in the <a href="{{ url_for('review') }}">review queue</a>
+  ("Re-detect channels from source"), delete this draft, and recreate it.
+</div>
+{% endif %}
+
 {% if not draft and statement_consignors %}
 <div class="card">
   <strong>Statements:</strong>

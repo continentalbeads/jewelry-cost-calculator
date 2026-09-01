@@ -579,15 +579,19 @@ def review():
     consignor_rows = conn.execute(
         "SELECT id, name FROM consignors WHERE active=1 ORDER BY name").fetchall()
     channels = feemod.channel_list(conn)
+    fee_channels = feemod.fee_channels(conn)
     buckets = {
         "confident": bucket("confident") + bucket("confirmed"),
         "fuzzy": bucket("fuzzy"),
         "unmatched": bucket("unmatched"),
         "dismissed": bucket("dismissed"),
     }
+    no_fee_count = sum(1 for l in buckets["confident"] + buckets["fuzzy"]
+                       if l["channel"] not in fee_channels)
     conn.close()
     return render_template("review.html", consignors=consignor_rows,
-                           channels=channels, **buckets)
+                           channels=channels, fee_channels=fee_channels,
+                           no_fee_count=no_fee_count, **buckets)
 
 
 @app.route("/line/<int:lid>/assign", methods=["POST"])
@@ -689,6 +693,31 @@ def dismiss_unmatched():
     conn.commit()
     conn.close()
     flash(f"Dismissed {n} unmatched lines as not-consignment.", "ok")
+    return redirect(url_for("review"))
+
+
+@app.route("/review/redetect-channels", methods=["POST"])
+def redetect_channels():
+    """Re-run channel detection from each line's raw source value — for lines
+    imported before a source variant (e.g. Shopify POS's '580111') was known.
+    Only touches unsettled lines, and resets any manual channel overrides."""
+    conn = get_conn()
+    lines = conn.execute(
+        "SELECT id, channel, channel_raw FROM import_lines WHERE settled_run_id IS NULL"
+    ).fetchall()
+    changed = 0
+    for l in lines:
+        new = importer.resolve_channel(l["channel_raw"])
+        if new != l["channel"]:
+            db.audit(conn, "import_lines", l["id"], "channel", l["channel"], new,
+                     "bulk channel re-detect")
+            conn.execute("UPDATE import_lines SET channel=? WHERE id=?", (new, l["id"]))
+            changed += 1
+    conn.commit()
+    conn.close()
+    flash(f"Re-detected channels on unsettled lines: {changed} changed. "
+          f"If a draft run already exists, delete it and recreate so fees recompute.",
+          "ok")
     return redirect(url_for("review"))
 
 
@@ -807,9 +836,11 @@ def run_detail(run_id):
                JOIN consignors c ON c.id = l.consignor_id
                WHERE l.run_id=? ORDER BY c.name""", (run_id,)).fetchall()
     conn.close()
+    no_fee_count = sum(1 for l in lines if not l["excluded"] and not l["fees"])
     return render_template("run_detail.html", run=run, lines=lines,
                            consignors=consignor_rows, channels=channels,
-                           statement_consignors=statement_consignors, today=today())
+                           statement_consignors=statement_consignors, today=today(),
+                           no_fee_count=no_fee_count)
 
 
 @app.route("/runs/<int:run_id>/delete", methods=["POST"])

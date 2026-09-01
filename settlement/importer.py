@@ -39,12 +39,15 @@ HEADER_GUESSES = {
 }
 
 # Substring -> channel name (must line up with fee_schedule channels).
+# Shopify's Source column is inconsistent: POS orders can export as "pos",
+# "Point of Sale", "iphone"/"android", or the POS channel's app ID "580111".
 CHANNEL_MAP = [
     ("ebay", "eBay"),
     ("etsy", "Etsy"),
     ("faire", "Faire"),
     ("point of sale", "Showroom POS"),
     ("pos", "Showroom POS"),
+    ("580111", "Showroom POS"),
     ("iphone", "Showroom POS"),
     ("android", "Showroom POS"),
     ("web", "Shopify Online"),

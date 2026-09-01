@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Review queue — CBS Settlement{% endblock %}
 
-{% macro line_cells(l) %}
+{% macro line_cells(l, fee_channels) %}
   <td>{{ l.order_ref or '' }}<div class="subtle">{{ l.order_date or 'no date' }}</div></td>
   <td>
     <form class="inline" method="post" action="{{ url_for('line_channel', lid=l.id) }}">
@@ -10,6 +10,7 @@
         {% if l.channel and l.channel not in channels %}<option selected>{{ l.channel }}</option>{% endif %}
       </select>
     </form>
+    {% if l.channel not in fee_channels %}<div><span class="pill bad" title="this channel matches no deductible fee rule — the line would settle with ZERO fees; pick the right channel or fix the fee schedule">⚠ no fee rules</span></div>{% endif %}
     {% if l.channel_raw %}<div class="subtle">src: {{ l.channel_raw }}</div>{% endif %}
   </td>
   <td>{{ l.sku or '' }}</td>
@@ -28,6 +29,20 @@ dropped silently.</p>
 <form class="inline" method="post" action="{{ url_for('rematch') }}">
   <button class="secondary">Re-run matching on pending lines</button>
 </form>
+<form class="inline" method="post" action="{{ url_for('redetect_channels') }}"
+      onsubmit="return confirm('Re-detect the channel on every unsettled line from its raw source value? Manual channel overrides will be reset.')">
+  <button class="secondary">Re-detect channels from source</button>
+</form>
+
+{% if no_fee_count %}
+<div class="banner flash-error">
+  ⚠ {{ no_fee_count }} matched line{{ 's' if no_fee_count != 1 }} {{ 'are' if no_fee_count != 1 else 'is' }} on a
+  channel with <strong>no deductible fee rules</strong> — they would settle with ZERO fees deducted.
+  Fix the channel on those lines (look for the "no fee rules" flag below), click
+  "Re-detect channels from source", or add the channel to the
+  <a href="{{ url_for('fee_schedule') }}">fee schedule</a>.
+</div>
+{% endif %}
 
 <h2>Fuzzy matches — confirm these ({{ fuzzy | length }})</h2>
 <table>
@@ -35,7 +50,7 @@ dropped silently.</p>
       <th>Suggested</th><th class="num">Score</th><th>Actions</th></tr>
   {% for l in fuzzy %}
   <tr>
-    {{ line_cells(l) }}
+    {{ line_cells(l, fee_channels) }}
     <td><strong>{{ l.consignor_name }}</strong><div class="subtle">{{ l.match_method }}</div></td>
     <td class="num">{{ '%.0f' % (l.match_score * 100) }}%</td>
     <td>
@@ -63,7 +78,7 @@ dropped silently.</p>
   <tr><th>Order</th><th>Channel</th><th>SKU</th><th>Raw title (as typed)</th><th class="num">Gross</th><th>Assign</th></tr>
   {% for l in unmatched %}
   <tr>
-    {{ line_cells(l) }}
+    {{ line_cells(l, fee_channels) }}
     <td>
       <form class="inline" method="post" action="{{ url_for('line_assign', lid=l.id) }}">
         <select name="consignor_id">{% for c in consignors %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
@@ -85,7 +100,7 @@ dropped silently.</p>
     <tr><th>Order</th><th>Channel</th><th>SKU</th><th>Title</th><th class="num">Gross</th><th>Matched to</th><th></th></tr>
     {% for l in confident %}
     <tr>
-      {{ line_cells(l) }}
+      {{ line_cells(l, fee_channels) }}
       <td><strong>{{ l.consignor_name }}</strong><div class="subtle">{{ l.match_method }}</div></td>
       <td>
         <form class="inline" method="post" action="{{ url_for('line_restore', lid=l.id) }}"><button class="tiny secondary">Unmatch</button></form>
@@ -102,7 +117,7 @@ dropped silently.</p>
     <tr><th>Order</th><th>Channel</th><th>SKU</th><th>Title</th><th class="num">Gross</th><th></th></tr>
     {% for l in dismissed %}
     <tr>
-      {{ line_cells(l) }}
+      {{ line_cells(l, fee_channels) }}
       <td><form class="inline" method="post" action="{{ url_for('line_restore', lid=l.id) }}"><button class="tiny secondary">Restore to queue</button></form></td>
     </tr>
     {% endfor %}

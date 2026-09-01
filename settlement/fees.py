@@ -32,6 +32,14 @@ def compute_fees(conn, channel, order_date, gross_cents):
     return out
 
 
+def fee_channels(conn):
+    """Channels that have at least one deductible fee rule — lines on any other
+    channel would settle with zero fees, which deserves a loud warning."""
+    rows = conn.execute(
+        "SELECT DISTINCT channel FROM fee_schedule WHERE deductible=1").fetchall()
+    return {r["channel"] for r in rows}
+
+
 def channel_list(conn):
     """Known channels: everything in the fee schedule plus anything seen on lines."""
     rows = conn.execute(
