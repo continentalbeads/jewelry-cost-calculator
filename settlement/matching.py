@@ -57,9 +57,14 @@ def match_line(sku, title, alias_index):
             if text in title_norm or (_squash(text) and _squash(text) in title_squashed):
                 return ("confident", cid, f"title contains '{text}'", 1.0)
 
+        # Compare each alias against single words AND adjacent word pairs, so
+        # multi-word prefixes like "Beads Amore" survive typos too.
+        candidates = title_tokens + [
+            f"{a} {b}" for a, b in zip(title_tokens, title_tokens[1:])
+        ]
         best = (0.0, None, None)
         for text, _kind, cid, _name in alias_index:
-            for tok in title_tokens:
+            for tok in candidates:
                 ratio = SequenceMatcher(None, text, tok).ratio()
                 if ratio > best[0]:
                     best = (ratio, cid, f"fuzzy '{tok}' ~ '{text}'")

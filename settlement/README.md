@@ -22,8 +22,11 @@ Open <http://127.0.0.1:5111>.
 
 First-time setup, in order:
 
-1. **Consignors** — add your four consignors with their SKU/title prefixes,
-   split %, Zelle contact, W-9 status.
+1. **Consignors** — Kevin Long (prefix *Kiowa*), Sue Smith (*Beads Amore*),
+   Esther Morse (*Esther*), and Pauline Mariano (*Pauline*) are pre-seeded at
+   the default 40% split on a fresh database. Fill in each one's Zelle
+   contact and W-9 status (payouts are blocked without a W-9 unless you
+   override), plus any business names or extra aliases.
 2. **Fees** — correct every seeded rate and tick *verified* (a banner nags
    until you do).
 3. **Import** — upload the Shopify order CSV, confirm the column mapping

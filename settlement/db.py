@@ -28,8 +28,34 @@ def init_db():
     with open(SCHEMA_PATH) as f:
         conn.executescript(f.read())
     seed_fee_schedule(conn)
+    seed_consignors(conn)
     conn.commit()
     conn.close()
+
+
+# CBS's consignors as of 2026-09: payee name + their SKU/tag prefix.
+# Seeded only into a brand-new database; edit freely in the UI afterwards
+# (add Zelle contacts, W-9 status, business names, extra aliases).
+SEED_CONSIGNORS = [
+    ("Kevin Long", "Kiowa"),
+    ("Sue Smith", "Beads Amore"),
+    ("Esther Morse", "Esther"),
+    ("Pauline Mariano", "Pauline"),
+]
+
+
+def seed_consignors(conn):
+    if conn.execute("SELECT COUNT(*) AS c FROM consignors").fetchone()["c"]:
+        return
+    for name, prefix in SEED_CONSIGNORS:
+        cur = conn.execute(
+            "INSERT INTO consignors (name, split_bps, active) VALUES (?, 4000, 1)",
+            (name,),
+        )
+        conn.execute(
+            "INSERT INTO aliases (consignor_id, text, kind) VALUES (?, ?, 'prefix')",
+            (cur.lastrowid, prefix),
+        )
 
 
 # Seeded rates are PLACEHOLDERS (verified=0). The UI shows a banner until every
