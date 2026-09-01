@@ -3,11 +3,14 @@
 Order of attempts per line:
   1. SKU starts with a known consignor prefix (case-insensitive, separator-tolerant)
      -> confident
-  2. Title contains a prefix or alias as a token/substring (case-insensitive,
+  2. Product-catalog tag: the line's SKU (or exact title) is found in the
+     imported Shopify product catalog and the product's tags include a
+     consignor's 'tag' alias (e.g. "Kevin Long") -> confident
+  3. Title contains a prefix or alias as a token/substring (case-insensitive,
      whitespace-normalized) -> confident
-  3. Fuzzy: best difflib ratio between any title token and any prefix/alias
-     >= FUZZY_THRESHOLD -> fuzzy (needs confirmation, score shown)
-  4. -> unmatched
+  4. Fuzzy: best difflib ratio between any title token/word-pair and any
+     prefix/alias >= FUZZY_THRESHOLD -> fuzzy (needs confirmation, score shown)
+  5. -> unmatched
 """
 import re
 from difflib import SequenceMatcher
@@ -40,13 +43,39 @@ def load_alias_index(conn):
     return [(_norm(r["text"]), r["kind"], r["consignor_id"], r["name"]) for r in rows if _norm(r["text"])]
 
 
-def match_line(sku, title, alias_index):
+def load_catalog_index(conn):
+    """{'sku': {norm_sku: [norm_tags]}, 'title': {norm_title: [norm_tags]}}
+    from the imported product catalog."""
+    by_sku, by_title = {}, {}
+    for r in conn.execute("SELECT sku, title, tags FROM catalog_items").fetchall():
+        tags = [_norm(t) for t in (r["tags"] or "").split(",") if t.strip()]
+        if not tags:
+            continue
+        if _norm(r["sku"]):
+            by_sku[_norm(r["sku"])] = tags
+        if _norm(r["title"]):
+            by_title[_norm(r["title"])] = tags
+    return {"sku": by_sku, "title": by_title}
+
+
+def match_line(sku, title, alias_index, catalog_index=None):
     """Return (status, consignor_id, method, score) for one line."""
     sku_squashed = _squash(sku)
     if sku_squashed:
         for text, kind, cid, _name in alias_index:
             if kind == "prefix" and _squash(text) and sku_squashed.startswith(_squash(text)):
                 return ("confident", cid, f"sku prefix '{text}'", 1.0)
+
+    if catalog_index:
+        tags = None
+        if _norm(sku):
+            tags = catalog_index["sku"].get(_norm(sku))
+        if tags is None and _norm(title):
+            tags = catalog_index["title"].get(_norm(title))
+        if tags:
+            for text, kind, cid, _name in alias_index:
+                if kind == "tag" and text in tags:
+                    return ("confident", cid, f"product tag '{text}'", 1.0)
 
     title_norm = _norm(title)
     title_squashed = _squash(title)
@@ -78,13 +107,15 @@ def rematch_pending(conn):
     """Re-run matching on lines still fuzzy/unmatched (never touches confirmed,
     dismissed, or settled lines). Returns count of lines that changed."""
     alias_index = load_alias_index(conn)
+    catalog_index = load_catalog_index(conn)
     lines = conn.execute(
         """SELECT id, sku, title FROM import_lines
            WHERE match_status IN ('fuzzy','unmatched') AND settled_run_id IS NULL"""
     ).fetchall()
     changed = 0
     for line in lines:
-        status, cid, method, score = match_line(line["sku"], line["title"], alias_index)
+        status, cid, method, score = match_line(line["sku"], line["title"],
+                                                alias_index, catalog_index)
         conn.execute(
             """UPDATE import_lines
                SET match_status=?, consignor_id=?, match_method=?, match_score=?

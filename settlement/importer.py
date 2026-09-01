@@ -5,7 +5,7 @@ import io
 import json
 
 from db import audit
-from matching import load_alias_index, match_line
+from matching import load_alias_index, load_catalog_index, match_line
 from util import parse_cents, parse_date, parse_int
 
 # Fields the user can map a CSV column onto. (field, label, required)
@@ -97,6 +97,7 @@ def run_import(conn, file_bytes, filename, mapping):
     import_id = cur.lastrowid
 
     alias_index = load_alias_index(conn)
+    catalog_index = load_catalog_index(conn)
     # Shopify fills order-level columns only on the first line-item row of an
     # order; forward-fill those.
     carry_fields = ["order_ref", "order_date", "channel", "financial_status"]
@@ -146,7 +147,7 @@ def run_import(conn, file_bytes, filename, mapping):
             digest = hashlib.sha1("|".join(base).encode()).hexdigest()
             line_key = f"h:{digest}#{n}"
 
-        status, cid, method, score = match_line(sku, title, alias_index)
+        status, cid, method, score = match_line(sku, title, alias_index, catalog_index)
         try:
             conn.execute(
                 """INSERT INTO import_lines
@@ -172,3 +173,68 @@ def run_import(conn, file_bytes, filename, mapping):
     audit(conn, "imports", import_id, "import", None,
           f"{filename}: {total} rows, {new} new, {dup} duplicates skipped", "csv import")
     return import_id
+
+
+# ------------------- product catalog import (for tag matching) -------------------
+
+CATALOG_FIELDS = [
+    ("title", "Product title", True),
+    ("tags", "Tags", True),
+    ("sku", "Variant SKU", False),
+    ("handle", "Handle", False),
+]
+
+CATALOG_GUESSES = {
+    "title": ["title", "product title"],
+    "tags": ["tags", "product tags"],
+    "sku": ["variant sku", "sku"],
+    "handle": ["handle"],
+}
+
+
+def guess_catalog_mapping(headers):
+    lower = {h.strip().lower(): h for h in headers}
+    mapping = {}
+    for field, candidates in CATALOG_GUESSES.items():
+        for cand in candidates:
+            if cand in lower:
+                mapping[field] = lower[cand]
+                break
+    return mapping
+
+
+def run_catalog_import(conn, file_bytes, filename, mapping):
+    """Replace the stored product catalog with this Shopify product export.
+    Returns the number of catalog rows stored."""
+    text = file_bytes.decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+
+    def col(row, field):
+        header = mapping.get(field)
+        return (row.get(header) or "").strip() if header else ""
+
+    conn.execute("DELETE FROM catalog_items")
+    # Shopify's product export fills Title/Tags only on the product's first
+    # variant row; forward-fill them onto the following variant rows.
+    carried = {"title": "", "tags": "", "handle": ""}
+    count = 0
+    for row in reader:
+        values = {f: col(row, f) for f, _label, _req in CATALOG_FIELDS}
+        if values["handle"] and values["handle"] != carried["handle"]:
+            carried = {"title": "", "tags": "", "handle": values["handle"]}
+        for f in ("title", "tags"):
+            if values[f]:
+                carried[f] = values[f]
+            else:
+                values[f] = carried[f]
+        if not values["sku"] and not values["title"]:
+            continue
+        conn.execute(
+            "INSERT INTO catalog_items (handle, sku, title, tags) VALUES (?,?,?,?)",
+            (values["handle"] or None, values["sku"] or None,
+             values["title"] or None, values["tags"] or None))
+        count += 1
+    audit(conn, "catalog_items", None, "import", None,
+          f"{filename}: {count} products/variants (previous catalog replaced)",
+          "catalog import")
+    return count

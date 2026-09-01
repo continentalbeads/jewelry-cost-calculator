@@ -28,14 +28,17 @@
     </form>
 
     <h2>Prefixes &amp; aliases</h2>
-    <p class="subtle">Prefixes match SKU starts (e.g. <code>Kiowa-1234</code>) and title text; aliases match title text only. Add typo variants here (or save them from the review queue).</p>
+    <p class="subtle">Prefixes match SKU starts (e.g. <code>Kiowa-1234</code>) and title text;
+    aliases match title text only (add typo variants here, or save them from the review queue);
+    product tags match the website catalog's Tags column (e.g. <code>Kevin Long</code>) —
+    upload the product export on the Import page for tags to work.</p>
     {% for a in aliases.get(c.id, []) %}
       <span class="pill">{{ a.text }} <span class="subtle">({{ a.kind }})</span></span>
       <form class="inline" method="post" action="{{ url_for('alias_delete', aid=a.id) }}"><button class="tiny secondary" title="delete">×</button></form>
     {% endfor %}
     <form class="inline" method="post" action="{{ url_for('alias_add', cid=c.id) }}">
       <input type="text" name="text" placeholder="new prefix/alias" required>
-      <select name="kind"><option value="prefix">prefix (SKU + title)</option><option value="alias">alias (title only)</option></select>
+      <select name="kind"><option value="prefix">prefix (SKU + title)</option><option value="alias">alias (title only)</option><option value="tag">product tag (catalog)</option></select>
       <button class="tiny">Add</button>
     </form>
     <div style="margin-top:8px"><a href="{{ url_for('ledger_view', cid=c.id) }}">View ledger</a></div>

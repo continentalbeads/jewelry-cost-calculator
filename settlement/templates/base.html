@@ -15,6 +15,7 @@
   <a href="{{ url_for('review') }}">Review Queue{% if nav_pending_review %} <span class="badge">{{ nav_pending_review }}</span>{% endif %}</a>
   <a href="{{ url_for('runs') }}">Runs</a>
   <a href="{{ url_for('payouts') }}">Payouts</a>
+  <a href="{{ url_for('report') }}">Reports</a>
   <a href="{{ url_for('consignors') }}">Consignors</a>
   <a href="{{ url_for('fee_schedule') }}">Fees{% if nav_unverified_fees %} <span class="badge warn">{{ nav_unverified_fees }}</span>{% endif %}</a>
   <a href="{{ url_for('ten99') }}">1099</a>

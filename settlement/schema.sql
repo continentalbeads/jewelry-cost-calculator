@@ -32,11 +32,25 @@ CREATE TABLE IF NOT EXISTS aliases (
   id           INTEGER PRIMARY KEY,
   consignor_id INTEGER NOT NULL REFERENCES consignors(id) ON DELETE CASCADE,
   text         TEXT NOT NULL,
-  -- 'prefix' matches SKU prefixes AND title text; 'alias' matches title text only
-  kind         TEXT NOT NULL DEFAULT 'prefix' CHECK (kind IN ('prefix','alias')),
+  -- 'prefix' matches SKU prefixes AND title text; 'alias' matches title text
+  -- only; 'tag' matches product tags from the imported Shopify catalog
+  kind         TEXT NOT NULL DEFAULT 'prefix' CHECK (kind IN ('prefix','alias','tag')),
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE (consignor_id, text)
+  UNIQUE (consignor_id, text, kind)
 );
+
+-- Shopify product-catalog snapshot (product export CSV), used to match order
+-- lines whose product carries a consignor tag (e.g. "Kevin Long") but whose
+-- SKU has no consignor prefix. Replaced wholesale on each catalog upload.
+CREATE TABLE IF NOT EXISTS catalog_items (
+  id         INTEGER PRIMARY KEY,
+  handle     TEXT,
+  sku        TEXT,
+  title      TEXT,
+  tags       TEXT,   -- comma-separated, as exported
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_catalog_sku ON catalog_items(sku);
 
 CREATE TABLE IF NOT EXISTS fee_schedule (
   id             INTEGER PRIMARY KEY,
@@ -134,6 +148,7 @@ CREATE TABLE IF NOT EXISTS ledger (
   type                  TEXT NOT NULL CHECK (type IN ('SALE','REFUND','ADJUSTMENT','CHARGE','PAYOUT')),
   run_id                INTEGER REFERENCES runs(id),
   source_ref            TEXT,                   -- order/line reference, nullable
+  channel               TEXT,                   -- sales channel for SALE/REFUND
   description           TEXT,
   gross_cents           INTEGER NOT NULL DEFAULT 0,
   fee_cents             INTEGER NOT NULL DEFAULT 0,

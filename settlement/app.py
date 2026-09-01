@@ -9,7 +9,7 @@ import json
 import os
 import secrets
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 
 from flask import (Flask, abort, flash, jsonify, redirect, render_template,
                    request, send_file, session, url_for)
@@ -304,7 +304,7 @@ def alias_add(cid):
     if text:
         conn = get_conn()
         conn.execute("INSERT OR IGNORE INTO aliases (consignor_id, text, kind) VALUES (?,?,?)",
-                     (cid, text, kind if kind in ("prefix", "alias") else "alias"))
+                     (cid, text, kind if kind in ("prefix", "alias", "tag") else "alias"))
         db.audit(conn, "aliases", cid, kind, None, text, "alias added")
         conn.commit()
         conn.close()
@@ -406,8 +406,15 @@ def fee_verify(fid):
 def import_page():
     conn = get_conn()
     imports = conn.execute("SELECT * FROM imports ORDER BY id DESC LIMIT 20").fetchall()
+    catalog = conn.execute(
+        "SELECT COUNT(*) c, MAX(updated_at) t FROM catalog_items").fetchone()
+    tag_aliases = conn.execute(
+        """SELECT a.text, c.name FROM aliases a JOIN consignors c ON c.id=a.consignor_id
+           WHERE a.kind='tag' ORDER BY c.name""").fetchall()
     conn.close()
-    return render_template("import.html", imports=imports)
+    return render_template("import.html", imports=imports,
+                           catalog_count=catalog["c"], catalog_updated=catalog["t"],
+                           tag_aliases=tag_aliases)
 
 
 @app.route("/import/upload", methods=["POST"])
@@ -435,7 +442,9 @@ def import_upload():
         mapping = importer.guess_mapping(headers)
     return render_template("mapping.html", headers=headers, mapping=mapping,
                            fields=importer.MAP_FIELDS, token=token,
-                           filename=f.filename)
+                           filename=f.filename,
+                           heading="Map CSV columns",
+                           action_url=url_for("import_process"))
 
 
 @app.route("/import/process", methods=["POST"])
@@ -470,6 +479,69 @@ def import_process():
           f"({info['rows_dup']} duplicates skipped, {info['rows_total']} rows total). "
           f"Now clear the review queue.", "ok")
     return redirect(url_for("review"))
+
+
+# ------------------- product catalog import (tag matching) -------------------
+
+@app.route("/catalog/upload", methods=["POST"])
+def catalog_upload():
+    f = request.files.get("csv_file")
+    if not f or not f.filename:
+        flash("Choose the Shopify product export CSV first.", "error")
+        return redirect(url_for("import_page"))
+    data = f.read()
+    headers = importer.read_headers(data)
+    if not headers:
+        flash("Could not read any header row from that file.", "error")
+        return redirect(url_for("import_page"))
+    token = uuid.uuid4().hex
+    with open(os.path.join(db.UPLOAD_DIR, f"{token}.csv"), "wb") as out:
+        out.write(data)
+    conn = get_conn()
+    saved = db.get_setting(conn, "catalog_csv_mapping")
+    conn.close()
+    saved_mapping = json.loads(saved) if saved else {}
+    mapping = {k: v for k, v in saved_mapping.items() if v in headers}
+    if not mapping:
+        mapping = importer.guess_catalog_mapping(headers)
+    return render_template("mapping.html", headers=headers, mapping=mapping,
+                           fields=importer.CATALOG_FIELDS, token=token,
+                           filename=f.filename,
+                           heading="Map product catalog columns",
+                           action_url=url_for("catalog_process"))
+
+
+@app.route("/catalog/process", methods=["POST"])
+def catalog_process():
+    token = request.form.get("token", "")
+    filename = request.form.get("filename", "products.csv")
+    if not token.isalnum():
+        abort(400)
+    path = os.path.join(db.UPLOAD_DIR, f"{token}.csv")
+    if not os.path.exists(path):
+        flash("Upload expired — please re-upload the file.", "error")
+        return redirect(url_for("import_page"))
+    mapping = {}
+    for field, label, required in importer.CATALOG_FIELDS:
+        col = request.form.get(f"map_{field}", "")
+        if col:
+            mapping[field] = col
+        elif required:
+            flash(f"A column for '{label}' is required.", "error")
+            return redirect(url_for("import_page"))
+    with open(path, "rb") as fh:
+        data = fh.read()
+    conn = get_conn()
+    if request.form.get("remember"):
+        db.set_setting(conn, "catalog_csv_mapping", json.dumps(mapping))
+    count = importer.run_catalog_import(conn, data, filename, mapping)
+    rematched = matching.rematch_pending(conn)
+    conn.commit()
+    conn.close()
+    os.remove(path)
+    flash(f"Catalog updated: {count} products/variants stored. "
+          f"Pending lines re-matched — {rematched} now have a match.", "ok")
+    return redirect(url_for("import_page"))
 
 
 # ---------------------------------------------------------------- review queue
@@ -960,12 +1032,12 @@ def run_commit(run_id):
         source_ref = v["order_ref"] or (f"manual line {v['id']}" if v["manual"] else None)
         conn.execute(
             """INSERT INTO ledger (consignor_id, entry_date, type, run_id, source_ref,
-               description, gross_cents, fee_cents, fee_detail, net_cents,
+               channel, description, gross_cents, fee_cents, fee_detail, net_cents,
                consignor_share_cents, my_share_cents, amount_cents, note,
                manually_edited)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (v["consignor_id"], v["order_date"] or today(), v["entry_type"], run_id,
-             source_ref, v["description"], v["gross_cents"], v["fee_total"],
+             source_ref, v["channel"], v["description"], v["gross_cents"], v["fee_total"],
              json.dumps(kept_fees), v["net_cents"], v["consignor_share_cents"],
              v["my_share_cents"], v["consignor_share_cents"], v["note"], v["edited"]))
         committed += 1
@@ -1136,6 +1208,87 @@ def statement(run_id, cid):
                          mimetype="text/csv", as_attachment=True,
                          download_name=f"statement-{data['run']['period']}-{data['consignor']['name']}.csv")
     return render_template("statement.html", **data)
+
+
+# ---------------------------------------------------------------- sales report
+
+def _report_data(conn, cid, d_from, d_to):
+    consignor = conn.execute("SELECT * FROM consignors WHERE id=?", (cid,)).fetchone()
+    if not consignor:
+        return None
+    entries = conn.execute(
+        """SELECT * FROM ledger WHERE consignor_id=? AND type IN ('SALE','REFUND')
+           AND entry_date >= ? AND entry_date <= ?
+           ORDER BY channel, entry_date, id""", (cid, d_from, d_to)).fetchall()
+    groups = {}
+    for e in entries:
+        ch = e["channel"] or "(no channel recorded)"
+        g = groups.setdefault(ch, {"channel": ch, "entries": [], "totals":
+                                   {"gross": 0, "fees": 0, "net": 0, "share": 0}})
+        g["entries"].append({**dict(e),
+                             "fee_items": json.loads(e["fee_detail"]) if e["fee_detail"] else []})
+        g["totals"]["gross"] += e["gross_cents"]
+        g["totals"]["fees"] += e["fee_cents"]
+        g["totals"]["net"] += e["net_cents"]
+        g["totals"]["share"] += e["amount_cents"]
+    grand = {"gross": 0, "fees": 0, "net": 0, "share": 0, "count": len(entries)}
+    for g in groups.values():
+        for k in ("gross", "fees", "net", "share"):
+            grand[k] += g["totals"][k]
+    other = [dict(e) for e in conn.execute(
+        """SELECT * FROM ledger WHERE consignor_id=? AND type NOT IN ('SALE','REFUND')
+           AND entry_date >= ? AND entry_date <= ? ORDER BY entry_date, id""",
+        (cid, d_from, d_to)).fetchall()]
+    return {"consignor": consignor, "groups": list(groups.values()), "grand": grand,
+            "other": other, "other_total": sum(e["amount_cents"] for e in other),
+            "d_from": d_from, "d_to": d_to}
+
+
+@app.route("/report")
+def report():
+    conn = get_conn()
+    consignor_rows = conn.execute(
+        "SELECT id, name FROM consignors ORDER BY active DESC, name").fetchall()
+    # default to the previous calendar month (what you're paying out for)
+    this_month_first = date.today().replace(day=1)
+    prev_end = this_month_first - timedelta(days=1)
+    d_from = request.args.get("from") or prev_end.replace(day=1).isoformat()
+    d_to = request.args.get("to") or prev_end.isoformat()
+    cid = request.args.get("consignor_id", type=int)
+    data = _report_data(conn, cid, d_from, d_to) if cid else None
+    conn.close()
+    if data and request.args.get("fmt") == "csv":
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["Continental Bead Suppliers - Sales report"])
+        w.writerow(["Consignor", data["consignor"]["name"], "From", d_from, "To", d_to])
+        w.writerow([])
+        w.writerow(["Channel", "Date", "Type", "Order/Ref", "Item",
+                    "Gross", "Fees", "Net", "Consignor share"])
+        for g in data["groups"]:
+            for e in g["entries"]:
+                w.writerow([g["channel"], e["entry_date"], e["type"],
+                            e["source_ref"] or "", e["description"] or "",
+                            f"{e['gross_cents']/100:.2f}", f"{e['fee_cents']/100:.2f}",
+                            f"{e['net_cents']/100:.2f}", f"{e['amount_cents']/100:.2f}"])
+            t = g["totals"]
+            w.writerow([f"{g['channel']} subtotal", "", "", "", "",
+                        f"{t['gross']/100:.2f}", f"{t['fees']/100:.2f}",
+                        f"{t['net']/100:.2f}", f"{t['share']/100:.2f}"])
+        gr = data["grand"]
+        w.writerow(["TOTAL", "", "", "", "", f"{gr['gross']/100:.2f}",
+                    f"{gr['fees']/100:.2f}", f"{gr['net']/100:.2f}",
+                    f"{gr['share']/100:.2f}"])
+        for e in data["other"]:
+            w.writerow([e["type"], e["entry_date"], "", e["source_ref"] or "",
+                        e["description"] or "", "", "", "",
+                        f"{e['amount_cents']/100:.2f}"])
+        buf.seek(0)
+        return send_file(io.BytesIO(buf.getvalue().encode("utf-8-sig")),
+                         mimetype="text/csv", as_attachment=True,
+                         download_name=f"sales-{data['consignor']['name']}-{d_from}-to-{d_to}.csv")
+    return render_template("report.html", consignors=consignor_rows, cid=cid,
+                           d_from=d_from, d_to=d_to, data=data)
 
 
 # ---------------------------------------------------------------- 1099 / aging / ledger

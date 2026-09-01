@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Sales report — CBS Settlement{% endblock %}
+{% block content %}
+<h1>Sales report</h1>
+<p class="subtle no-print">Every committed sale and refund for one consignor — walk-in and
+online together, grouped by channel. Pulled from the ledger, so run it any time after a
+settlement run is committed. Defaults to last month.</p>
+
+<form method="get" action="{{ url_for('report') }}" class="formgrid no-print" style="max-width:760px">
+  <label>Consignor
+    <select name="consignor_id" required>
+      <option value="">— choose —</option>
+      {% for c in consignors %}
+      <option value="{{ c.id }}" {% if c.id == cid %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>From <input type="date" name="from" value="{{ d_from }}"></label>
+  <label>To <input type="date" name="to" value="{{ d_to }}"></label>
+  <div><button type="submit">Run report</button>
+    {% if data %}
+    <a class="btn secondary" href="{{ url_for('report', consignor_id=cid, **{'from': d_from, 'to': d_to, 'fmt': 'csv'}) }}">Download CSV</a>
+    <a class="btn secondary" href="#" onclick="window.print();return false">Print</a>
+    {% endif %}
+  </div>
+</form>
+
+{% if data %}
+<h2>{{ data.consignor.name }} — {{ data.d_from }} to {{ data.d_to }}</h2>
+{% if not data.groups %}
+<div class="card">No committed sales or refunds in this range.
+  <span class="subtle">Sales only appear here after their settlement run is committed —
+  check <a href="{{ url_for('runs') }}">Runs</a> for uncommitted drafts.</span></div>
+{% endif %}
+
+{% for g in data.groups %}
+<h2>{{ g.channel }}</h2>
+<table>
+  <tr><th>Date</th><th>Type</th><th>Order</th><th>Item</th>
+      <th class="num">Gross</th><th class="num">Fees</th><th class="num">Net</th>
+      <th class="num">Their share</th></tr>
+  {% for e in g.entries %}
+  <tr>
+    <td>{{ e.entry_date }}</td>
+    <td>{% if e.type == 'REFUND' %}<span class="pill bad">refund</span>{% else %}sale{% endif %}
+        {% if e.manually_edited %}<span class="flag" title="contains manual edits">✎</span>{% endif %}</td>
+    <td>{{ e.source_ref or '' }}</td>
+    <td>{{ e.description or '' }}</td>
+    <td class="num {{ 'neg' if e.gross_cents < 0 }}">{{ e.gross_cents | money }}</td>
+    <td class="num">{{ e.fee_cents | money }}</td>
+    <td class="num {{ 'neg' if e.net_cents < 0 }}">{{ e.net_cents | money }}</td>
+    <td class="num {{ 'neg' if e.amount_cents < 0 }}">{{ e.amount_cents | money }}</td>
+  </tr>
+  {% endfor %}
+  <tr class="totals"><td colspan="4">{{ g.channel }} subtotal ({{ g.entries | length }} lines)</td>
+    <td class="num">{{ g.totals.gross | money }}</td><td class="num">{{ g.totals.fees | money }}</td>
+    <td class="num">{{ g.totals.net | money }}</td><td class="num">{{ g.totals.share | money }}</td></tr>
+</table>
+{% endfor %}
+
+{% if data.groups %}
+<table>
+  <tr class="totals"><td>TOTAL — {{ data.grand.count }} lines</td>
+    <td class="num">{{ data.grand.gross | money }}</td><td class="num">{{ data.grand.fees | money }}</td>
+    <td class="num">{{ data.grand.net | money }}</td><td class="num">{{ data.grand.share | money }}</td></tr>
+</table>
+{% endif %}
+
+{% if data.other %}
+<h2>Other activity in this range</h2>
+<table style="max-width:800px">
+  <tr><th>Date</th><th>Type</th><th>Description</th><th class="num">Amount</th></tr>
+  {% for e in data.other %}
+  <tr><td>{{ e.entry_date }}</td><td><span class="pill">{{ e.type }}</span></td>
+      <td>{{ e.description or '' }} <span class="subtle">{{ e.note or '' }}</span></td>
+      <td class="num {{ 'neg' if e.amount_cents < 0 }}">{{ e.amount_cents | money }}</td></tr>
+  {% endfor %}
+  <tr class="totals"><td colspan="3">Other activity total</td>
+      <td class="num {{ 'neg' if data.other_total < 0 }}">{{ data.other_total | money }}</td></tr>
+</table>
+{% endif %}
+{% endif %}
+{% endblock %}

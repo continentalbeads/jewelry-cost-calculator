@@ -1,12 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Column mapping — CBS Settlement{% endblock %}
 {% block content %}
-<h1>Map CSV columns — {{ filename }}</h1>
-<p class="subtle">Best guesses are pre-selected from the headers. Map either a unit
-price (quantity × price is computed) or a line total. Map the line item ID if your
-export has one — it's the strongest duplicate-detection key.</p>
+<h1>{{ heading }} — {{ filename }}</h1>
+<p class="subtle">Best guesses are pre-selected from the headers.
+{% if action_url == url_for('import_process') %}
+Map either a unit price (quantity × price is computed) or a line total. Map the line
+item ID if your export has one — it's the strongest duplicate-detection key.
+{% else %}
+This is the Shopify <em>product</em> export: the Tags column is what lets online sales
+match by consignor tag (e.g. "Kevin Long") when the SKU has no prefix.
+{% endif %}</p>
 
-<form method="post" action="{{ url_for('import_process') }}">
+<form method="post" action="{{ action_url }}">
   <input type="hidden" name="token" value="{{ token }}">
   <input type="hidden" name="filename" value="{{ filename }}">
   <table style="max-width:720px">

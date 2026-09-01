@@ -27,10 +27,49 @@ def init_db():
     conn = connect()
     with open(SCHEMA_PATH) as f:
         conn.executescript(f.read())
+    migrate(conn)
     seed_fee_schedule(conn)
     seed_consignors(conn)
+    seed_tag_aliases(conn)
     conn.commit()
     conn.close()
+
+
+def migrate(conn):
+    """In-place upgrades for databases created by earlier versions."""
+    # 2026-09: ledger.channel records the sales channel on SALE/REFUND entries
+    ledger_cols = [r["name"] for r in conn.execute("PRAGMA table_info(ledger)")]
+    if "channel" not in ledger_cols:
+        conn.execute("ALTER TABLE ledger ADD COLUMN channel TEXT")
+    # 2026-09: aliases.kind gains 'tag' (product-tag matching); unique now
+    # includes kind so the same text can exist as both alias and tag
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='aliases'"
+    ).fetchone()
+    if row and "'tag'" not in row["sql"]:
+        conn.executescript("""
+            CREATE TABLE aliases_migrated (
+              id           INTEGER PRIMARY KEY,
+              consignor_id INTEGER NOT NULL REFERENCES consignors(id) ON DELETE CASCADE,
+              text         TEXT NOT NULL,
+              kind         TEXT NOT NULL DEFAULT 'prefix'
+                           CHECK (kind IN ('prefix','alias','tag')),
+              created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE (consignor_id, text, kind)
+            );
+            INSERT INTO aliases_migrated SELECT * FROM aliases;
+            DROP TABLE aliases;
+            ALTER TABLE aliases_migrated RENAME TO aliases;
+        """)
+
+
+def seed_tag_aliases(conn):
+    """Kiowa items on the website carry the product tag 'Kevin Long'."""
+    row = conn.execute("SELECT id FROM consignors WHERE name='Kevin Long'").fetchone()
+    if row:
+        conn.execute(
+            "INSERT OR IGNORE INTO aliases (consignor_id, text, kind) VALUES (?,?,'tag')",
+            (row["id"], "Kevin Long"))
 
 
 # CBS's consignors as of 2026-09: payee name + their SKU/tag prefix.

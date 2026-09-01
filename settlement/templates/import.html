@@ -14,6 +14,27 @@
   </form>
 </div>
 
+<div class="card">
+  <h2>Product catalog (for tag matching)</h2>
+  <p>Online items without a consignor SKU prefix are matched through their
+     <strong>product tags</strong> — but Shopify's order export doesn't include tags, so
+     upload the <strong>product export</strong> (Shopify admin → Products → Export) here.
+     Uploading replaces the previous catalog and re-runs matching on pending lines, so
+     re-export whenever you list new consignment items.</p>
+  <p class="subtle">
+    {% if catalog_count %}Catalog on file: {{ catalog_count }} products/variants
+      (updated {{ catalog_updated }}).{% else %}No catalog uploaded yet — online items
+      are matched by SKU prefix and title only.{% endif %}
+    Tags in use:
+    {% for t in tag_aliases %}<span class="pill">{{ t.text }} → {{ t.name }}</span>{% else %}
+      <em>none — add a "product tag" alias on the Consignors page</em>{% endfor %}
+  </p>
+  <form method="post" action="{{ url_for('catalog_upload') }}" enctype="multipart/form-data">
+    <input type="file" name="csv_file" accept=".csv" required>
+    <button type="submit" class="secondary">Upload product export</button>
+  </form>
+</div>
+
 <h2>Past imports</h2>
 <table>
   <tr><th>#</th><th>File</th><th class="num">Rows</th><th class="num">New</th>

@@ -70,6 +70,12 @@ For each imported line, in order:
 1. **SKU prefix** — SKU, lowercased, starts with a known consignor prefix
    (separator-tolerant: `kiowa-1234`, `KIOWA1234`, `kiowa_1234` all match
    prefix `Kiowa`). → **confident** bucket.
+1b. **Product tag** — the line's SKU (or exact title) is found in the imported
+   Shopify *product* catalog and that product's Tags include a consignor's
+   tag alias (Kiowa items online carry the tag `Kevin Long`). Shopify's order
+   export doesn't include product tags, so this needs the product export
+   uploaded on the Import page; uploads replace the stored catalog and re-run
+   matching on pending lines. → **confident**.
 2. **Title contains** — the line title, lowercased and whitespace-normalized,
    contains a prefix or alias as a token/substring. → **confident**.
 3. **Fuzzy title** — each word token of the title is compared to every
