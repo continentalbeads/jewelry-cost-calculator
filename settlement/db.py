@@ -63,13 +63,24 @@ def migrate(conn):
         """)
 
 
+# Website product tags per consignor. Kiowa items are tagged with the payee's
+# name; the others are tagged with their prefix. Runs idempotently on every
+# start so existing databases pick up additions.
+SEED_TAGS = [
+    ("Kevin Long", "Kevin Long"),
+    ("Sue Smith", "Beads Amore"),
+    ("Esther Morse", "Esther"),
+    ("Pauline Mariano", "Pauline"),
+]
+
+
 def seed_tag_aliases(conn):
-    """Kiowa items on the website carry the product tag 'Kevin Long'."""
-    row = conn.execute("SELECT id FROM consignors WHERE name='Kevin Long'").fetchone()
-    if row:
-        conn.execute(
-            "INSERT OR IGNORE INTO aliases (consignor_id, text, kind) VALUES (?,?,'tag')",
-            (row["id"], "Kevin Long"))
+    for name, tag in SEED_TAGS:
+        row = conn.execute("SELECT id FROM consignors WHERE name=?", (name,)).fetchone()
+        if row:
+            conn.execute(
+                "INSERT OR IGNORE INTO aliases (consignor_id, text, kind) VALUES (?,?,'tag')",
+                (row["id"], tag))
 
 
 # CBS's consignors as of 2026-09: payee name + their SKU/tag prefix.
