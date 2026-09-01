@@ -11,6 +11,9 @@
   <h1>Welcome, {{ consignor_name }}</h1>
   <p class="subtle">Create your login for the Continental Bead Suppliers consignor
      portal, where you can see your sales, payments, and balance.</p>
+  <p class="subtle">Program documents:
+     <a href="{{ url_for('static', filename='docs/CBS-Consignment-How-It-Works.pdf') }}" target="_blank">How It Works</a> ·
+     <a href="{{ url_for('static', filename='docs/CBS-Consignment-Agreement.pdf') }}" target="_blank">Consignment Agreement</a></p>
   {% if error %}<div class="banner flash-error">{{ error }}</div>{% endif %}
   <form method="post" action="{{ url_for('invite_accept', token=token) }}" class="formgrid" style="grid-template-columns:1fr">
     <label>Your email <input type="email" name="email" value="{{ request.form.get('email','') }}" required autofocus></label>
