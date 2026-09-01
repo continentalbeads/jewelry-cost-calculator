@@ -9,8 +9,10 @@
   <p class="subtle">Shipping is excluded automatically: only line items are read, so
      order-level shipping never enters the split base.</p>
   <form method="post" action="{{ url_for('import_upload') }}" enctype="multipart/form-data">
-    <input type="file" name="csv_file" accept=".csv" required>
-    <button type="submit">Upload &amp; map columns</button>
+    <input type="file" name="csv_file" accept=".csv">
+    <div class="subtle" style="margin:6px 0">— or, if the file chooser won't open (e.g. running this Mac remotely), type the CSV's path on this computer:</div>
+    <input type="text" name="server_path" placeholder="~/Downloads/orders_export_1.csv" style="width:340px">
+    <button type="submit">Import &amp; map columns</button>
   </form>
 </div>
 
@@ -30,8 +32,10 @@
       <em>none — add a "product tag" alias on the Consignors page</em>{% endfor %}
   </p>
   <form method="post" action="{{ url_for('catalog_upload') }}" enctype="multipart/form-data">
-    <input type="file" name="csv_file" accept=".csv" required>
-    <button type="submit" class="secondary">Upload product export</button>
+    <input type="file" name="csv_file" accept=".csv">
+    <div class="subtle" style="margin:6px 0">— or type the CSV's path on this computer:</div>
+    <input type="text" name="server_path" placeholder="~/Downloads/products_export_1.csv" style="width:340px">
+    <button type="submit" class="secondary">Import product export</button>
   </form>
 </div>
 

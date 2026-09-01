@@ -417,13 +417,34 @@ def import_page():
                            tag_aliases=tag_aliases)
 
 
+def _read_csv_source():
+    """The upload forms accept either a browsed file or a typed path to a CSV
+    on this computer (for when the native file dialog can't be used, e.g.
+    driving the Mac remotely). Returns (bytes, filename) or (None, error)."""
+    f = request.files.get("csv_file")
+    if f and f.filename:
+        return f.read(), f.filename
+    path = os.path.expanduser(request.form.get("server_path", "").strip().strip("'\""))
+    if not path:
+        return None, "Choose a CSV file or type its path on this computer."
+    if not os.path.isfile(path):
+        return None, f"No file found at {path} — check the path (e.g. ~/Downloads/orders_export.csv)."
+    if os.path.getsize(path) > 50 * 1024 * 1024:
+        return None, f"{path} is over 50 MB — that doesn't look like an order export."
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(), os.path.basename(path)
+    except OSError as e:
+        return None, f"Couldn't read {path}: {e}"
+
+
 @app.route("/import/upload", methods=["POST"])
 def import_upload():
-    f = request.files.get("csv_file")
-    if not f or not f.filename:
-        flash("Choose a CSV file first.", "error")
+    data, name_or_err = _read_csv_source()
+    if data is None:
+        flash(name_or_err, "error")
         return redirect(url_for("import_page"))
-    data = f.read()
+    filename = name_or_err
     headers = importer.read_headers(data)
     if not headers:
         flash("Could not read any header row from that file.", "error")
@@ -442,7 +463,7 @@ def import_upload():
         mapping = importer.guess_mapping(headers)
     return render_template("mapping.html", headers=headers, mapping=mapping,
                            fields=importer.MAP_FIELDS, token=token,
-                           filename=f.filename,
+                           filename=filename,
                            heading="Map CSV columns",
                            action_url=url_for("import_process"))
 
@@ -485,11 +506,11 @@ def import_process():
 
 @app.route("/catalog/upload", methods=["POST"])
 def catalog_upload():
-    f = request.files.get("csv_file")
-    if not f or not f.filename:
-        flash("Choose the Shopify product export CSV first.", "error")
+    data, name_or_err = _read_csv_source()
+    if data is None:
+        flash(name_or_err, "error")
         return redirect(url_for("import_page"))
-    data = f.read()
+    filename = name_or_err
     headers = importer.read_headers(data)
     if not headers:
         flash("Could not read any header row from that file.", "error")
@@ -506,7 +527,7 @@ def catalog_upload():
         mapping = importer.guess_catalog_mapping(headers)
     return render_template("mapping.html", headers=headers, mapping=mapping,
                            fields=importer.CATALOG_FIELDS, token=token,
-                           filename=f.filename,
+                           filename=filename,
                            heading="Map product catalog columns",
                            action_url=url_for("catalog_process"))
 
