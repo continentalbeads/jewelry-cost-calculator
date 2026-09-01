@@ -46,6 +46,8 @@ CHANNEL_MAP = [
     ("etsy", "Etsy"),
     ("faire", "Faire"),
     ("point of sale", "Showroom POS"),
+    ("quick_sale", "Showroom POS"),
+    ("quick sale", "Showroom POS"),
     ("pos", "Showroom POS"),
     ("580111", "Showroom POS"),
     ("iphone", "Showroom POS"),
