@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Consignor Portal — Continental Bead Suppliers{% endblock %}
+{% block content %}
+{% if preview %}
+<div class="banner warn">Owner preview — this is exactly what {{ consignor.name }} sees.
+  <a href="{{ url_for('consignors') }}">← back to consignors</a></div>
+{% endif %}
+
+<div class="portal-head">
+  <div>
+    <h1>Continental Bead Suppliers — Consignor Portal</h1>
+    <div class="subtle">{{ consignor.name }}{% if consignor.business_name %} · {{ consignor.business_name }}{% endif %}</div>
+  </div>
+  {% if not preview %}
+  <div class="nav-user" style="color:#57524b">
+    <a href="{{ url_for('account') }}">{{ current_user_email }}</a>
+    <form class="inline" method="post" action="{{ url_for('logout') }}"><button class="tiny secondary">Sign out</button></form>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card" style="max-width:420px">
+  <div class="subtle">Current balance</div>
+  <div style="font-size:1.6rem" class="{{ 'neg' if balance < 0 }}">{{ balance | money }}</div>
+  {% if balance < 0 %}
+  <div class="subtle">A negative balance (usually from a refund) simply carries forward
+  and is offset by your future sales — nothing is owed back.</div>
+  {% else %}
+  <div class="subtle">Balances are paid out on the first business day of each month.</div>
+  {% endif %}
+</div>
+
+<p class="subtle">Amounts shown are the net proceeds credited to you for each item.
+Sales appear here after the monthly settlement is finalized.</p>
+
+{% for m in months %}
+<h2>{{ m.month }}
+  <span class="subtle" style="font-weight:normal">— credited to you: {{ m.credited | money }}{% if m.paid %} · paid to you: {{ m.paid | money }}{% endif %}</span>
+</h2>
+<table style="max-width:860px">
+  <tr><th>Date</th><th>Activity</th><th>Item / description</th><th class="num">Amount</th></tr>
+  {% for e in m.entries %}
+  <tr>
+    <td>{{ e.entry_date }}</td>
+    <td><span class="pill {{ 'bad' if e.type in ('REFUND','CHARGE') }} {{ 'ok' if e.type == 'PAYOUT' }}">{{ labels[e.type] }}</span></td>
+    <td>{{ e.description or '' }}</td>
+    <td class="num {{ 'neg' if e.amount_cents < 0 }}">{{ e.amount_cents | money }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="card">No activity yet — your sales will appear here after the next monthly settlement.</div>
+{% endfor %}
+{% endblock %}

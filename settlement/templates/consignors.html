@@ -41,6 +41,30 @@
       <select name="kind"><option value="prefix">prefix (SKU + title)</option><option value="alias">alias (title only)</option><option value="tag">product tag (catalog)</option></select>
       <button class="tiny">Add</button>
     </form>
+    <h2>Portal access</h2>
+    {% for u in portal_users.get(c.id, []) %}
+      <div>Account: <strong>{{ u.email }}</strong>
+        <span class="subtle">last sign-in {{ u.last_login or 'never' }}</span>
+        <form class="inline" method="post" action="{{ url_for('portal_user_delete', uid=u.id) }}"
+              onsubmit="return confirm('Remove portal access for {{ u.email }}?')">
+          <button class="tiny danger">Remove access</button></form>
+      </div>
+    {% endfor %}
+    {% for i in open_invites.get(c.id, []) %}
+      <div>Invite link (send this to them, works once, expires {{ i.expires_at }}):
+        <code style="user-select:all">{{ request.host_url }}invite/{{ i.token }}</code>
+        <form class="inline" method="post" action="{{ url_for('invite_revoke', iid=i.id) }}">
+          <button class="tiny secondary">Revoke</button></form>
+      </div>
+    {% endfor %}
+    {% if not portal_users.get(c.id) and not open_invites.get(c.id) %}
+      <div class="subtle">No portal account yet.</div>
+    {% endif %}
+    <form class="inline" method="post" action="{{ url_for('consignor_invite', cid=c.id) }}">
+      <button class="tiny">Create invite link</button>
+    </form>
+    <a class="btn secondary tiny" style="padding:1px 7px;font-size:0.8rem"
+       href="{{ url_for('portal_home', **{'as': c.id}) }}">Preview their portal</a>
     <div style="margin-top:8px"><a href="{{ url_for('ledger_view', cid=c.id) }}">View ledger</a></div>
   </details>
 </div>

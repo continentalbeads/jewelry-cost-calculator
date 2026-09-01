@@ -8,6 +8,7 @@ import io
 import json
 import os
 import secrets
+import time
 import uuid
 from datetime import date, timedelta
 
@@ -46,6 +47,10 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",  # blocks cross-site form posts to the app
     PERMANENT_SESSION_LIFETIME=timedelta(days=30),
 )
+if os.environ.get("CBS_HTTPS"):
+    # set CBS_HTTPS=1 when serving through HTTPS (tunnel/reverse proxy) so the
+    # session cookie is never sent over plain HTTP
+    app.config["SESSION_COOKIE_SECURE"] = True
 
 app.jinja_env.filters["money"] = fmt_money
 app.jinja_env.filters["bps"] = fmt_bps
@@ -57,7 +62,10 @@ def get_conn():
 
 # ---------------------------------------------------------------- auth
 
-PUBLIC_ENDPOINTS = {"login", "setup", "static"}
+PUBLIC_ENDPOINTS = {"login", "setup", "static", "invite_accept"}
+# The ONLY endpoints a consignor account can reach — everything else redirects
+# to their portal (or 403s for API paths). Default-deny.
+PORTAL_ENDPOINTS = {"portal_home", "logout", "account"}
 
 
 @app.before_request
@@ -65,34 +73,40 @@ def require_login():
     if request.endpoint in PUBLIC_ENDPOINTS or request.endpoint is None:
         return None
     conn = get_conn()
-    n_users = conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
+    n_users = conn.execute(
+        "SELECT COUNT(*) c FROM users WHERE role='owner'").fetchone()["c"]
     uid = session.get("uid")
-    user_ok = bool(
-        n_users and uid
-        and conn.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone()
-    )
+    user = None
+    if uid:
+        user = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
     conn.close()
     if not n_users:
         return redirect(url_for("setup"))
-    if user_ok:
-        return None
-    session.clear()
-    if request.path.startswith("/api/"):
-        abort(401)
-    nxt = request.path if request.method == "GET" else None
-    return redirect(url_for("login", next=nxt))
+    if user is None:
+        session.clear()
+        if request.path.startswith("/api/"):
+            abort(401)
+        nxt = request.path if request.method == "GET" else None
+        return redirect(url_for("login", next=nxt))
+    if user["role"] == "consignor" and request.endpoint not in PORTAL_ENDPOINTS:
+        if request.path.startswith("/api/"):
+            abort(403)
+        return redirect(url_for("portal_home"))
+    return None
 
 
 @app.context_processor
 def auth_ctx():
     uid = session.get("uid")
-    email = None
+    email = role = None
     if uid:
         conn = get_conn()
-        row = conn.execute("SELECT email FROM users WHERE id=?", (uid,)).fetchone()
+        row = conn.execute("SELECT email, role FROM users WHERE id=?", (uid,)).fetchone()
         conn.close()
-        email = row["email"] if row else None
-    return {"logged_in": email is not None, "current_user_email": email}
+        if row:
+            email, role = row["email"], row["role"]
+    return {"logged_in": email is not None, "current_user_email": email,
+            "is_owner": role == "owner"}
 
 
 def _safe_next(target):
@@ -134,18 +148,32 @@ def setup():
                            email=request.form.get("email", "dean@continentalbeads.com"))
 
 
+# Simple in-memory login throttle (the portal faces the internet):
+# after MAX_FAILS bad attempts for an email, lock that email out for LOCK_SECS.
+_login_fails = {}
+_LOGIN_MAX_FAILS = 8
+_LOGIN_LOCK_SECS = 300
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     conn = get_conn()
-    if not conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]:
+    if not conn.execute("SELECT COUNT(*) c FROM users WHERE role='owner'").fetchone()["c"]:
         conn.close()
         return redirect(url_for("setup"))
     error = None
     if request.method == "POST":
         email = request.form.get("email", "").strip()
         pw = request.form.get("password", "")
+        key = email.lower()
+        fails, locked_until = _login_fails.get(key, (0, 0))
+        if time.time() < locked_until:
+            conn.close()
+            return render_template("login.html", next="", error=
+                "Too many failed attempts — try again in a few minutes."), 429
         user = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
         if user and check_password_hash(user["password_hash"], pw):
+            _login_fails.pop(key, None)
             conn.execute("UPDATE users SET last_login=datetime('now') WHERE id=?",
                          (user["id"],))
             db.audit(conn, "users", user["id"], "login", None, user["email"], "signed in")
@@ -154,7 +182,12 @@ def login():
             session.clear()
             session["uid"] = user["id"]
             session.permanent = bool(request.form.get("remember"))
+            if user["role"] == "consignor":
+                return redirect(url_for("portal_home"))
             return redirect(_safe_next(request.form.get("next")) or url_for("dashboard"))
+        fails += 1
+        _login_fails[key] = (fails, time.time() + _LOGIN_LOCK_SECS
+                             if fails >= _LOGIN_MAX_FAILS else 0)
         db.audit(conn, "users", None, "login_failed", None, email, "bad credentials")
         conn.commit()
         error = "Wrong email or password."
@@ -199,9 +232,14 @@ def account():
 
 @app.context_processor
 def nav_counts():
-    if not session.get("uid"):
+    uid = session.get("uid")
+    if not uid:
         return {"nav_pending_review": 0, "nav_unverified_fees": 0}
     conn = get_conn()
+    row = conn.execute("SELECT role FROM users WHERE id=?", (uid,)).fetchone()
+    if not row or row["role"] != "owner":
+        conn.close()
+        return {"nav_pending_review": 0, "nav_unverified_fees": 0}
     pending = conn.execute(
         """SELECT COUNT(*) c FROM import_lines
            WHERE match_status IN ('fuzzy','unmatched') AND settled_run_id IS NULL"""
@@ -228,6 +266,142 @@ def dashboard():
     return render_template("index.html", consignors=consignors, runs=runs)
 
 
+# ------------------------------------------------- consignor portal & invites
+
+@app.route("/consignors/<int:cid>/invite", methods=["POST"])
+def consignor_invite(cid):
+    conn = get_conn()
+    c = conn.execute("SELECT * FROM consignors WHERE id=?", (cid,)).fetchone()
+    if not c:
+        abort(404)
+    token = secrets.token_urlsafe(24)
+    conn.execute(
+        "INSERT INTO invites (token, consignor_id, expires_at) "
+        "VALUES (?,?, datetime('now', '+14 days'))", (token, cid))
+    db.audit(conn, "invites", cid, "invite", None, "portal invite created",
+             f"for {c['name']}")
+    conn.commit()
+    conn.close()
+    flash(f"Invite link for {c['name']} created — copy it from their card below "
+          f"and send it to them. It expires in 14 days and works once.", "ok")
+    return redirect(url_for("consignors"))
+
+
+@app.route("/invite/<int:iid>/revoke", methods=["POST"])
+def invite_revoke(iid):
+    conn = get_conn()
+    conn.execute("UPDATE invites SET used_at=datetime('now') WHERE id=? AND used_at IS NULL",
+                 (iid,))
+    db.audit(conn, "invites", iid, "invite", None, "revoked", "portal invite revoked")
+    conn.commit()
+    conn.close()
+    return redirect(url_for("consignors"))
+
+
+@app.route("/portal-user/<int:uid>/delete", methods=["POST"])
+def portal_user_delete(uid):
+    conn = get_conn()
+    u = conn.execute("SELECT * FROM users WHERE id=? AND role='consignor'", (uid,)).fetchone()
+    if u:
+        db.audit(conn, "users", uid, "deleted", u["email"], None, "portal access removed")
+        conn.execute("DELETE FROM users WHERE id=?", (uid,))
+        conn.commit()
+        flash(f"Portal access removed for {u['email']}.", "ok")
+    conn.close()
+    return redirect(url_for("consignors"))
+
+
+@app.route("/invite/<token>", methods=["GET", "POST"])
+def invite_accept(token):
+    conn = get_conn()
+    inv = conn.execute(
+        """SELECT i.*, c.name AS consignor_name FROM invites i
+           JOIN consignors c ON c.id = i.consignor_id
+           WHERE i.token=? AND i.used_at IS NULL AND i.expires_at > datetime('now')""",
+        (token,)).fetchone()
+    if not inv:
+        conn.close()
+        return render_template("invite.html", invalid=True), 404
+    error = None
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        pw = request.form.get("password", "")
+        pw2 = request.form.get("password2", "")
+        if "@" not in email:
+            error = "Enter a valid email address."
+        elif len(pw) < 8:
+            error = "Password must be at least 8 characters."
+        elif pw != pw2:
+            error = "Passwords don't match."
+        elif conn.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
+            error = "That email already has an account — sign in instead."
+        else:
+            cur = conn.execute(
+                "INSERT INTO users (email, password_hash, role, consignor_id) "
+                "VALUES (?,?, 'consignor', ?)",
+                (email, generate_password_hash(pw), inv["consignor_id"]))
+            conn.execute("UPDATE invites SET used_at=datetime('now') WHERE id=?",
+                         (inv["id"],))
+            db.audit(conn, "users", cur.lastrowid, "created", None, email,
+                     f"portal account for {inv['consignor_name']}")
+            conn.commit()
+            conn.close()
+            session.clear()
+            session["uid"] = cur.lastrowid
+            session.permanent = True
+            return redirect(url_for("portal_home"))
+    conn.close()
+    return render_template("invite.html", invalid=False, error=error,
+                           consignor_name=inv["consignor_name"], token=token)
+
+
+PORTAL_TYPE_LABELS = {
+    "SALE": "Sale — your share",
+    "REFUND": "Refund",
+    "PAYOUT": "Payment to you",
+    "CHARGE": "Charge",
+    "ADJUSTMENT": "Adjustment",
+}
+
+
+@app.route("/portal")
+def portal_home():
+    conn = get_conn()
+    user = conn.execute("SELECT * FROM users WHERE id=?", (session["uid"],)).fetchone()
+    if user["role"] == "consignor":
+        cid = user["consignor_id"]
+    else:
+        cid = request.args.get("as", type=int)  # owner preview
+        if not cid:
+            conn.close()
+            flash("To preview the portal, use the Preview link on a consignor's card.", "error")
+            return redirect(url_for("consignors"))
+    consignor = conn.execute("SELECT id, name, business_name FROM consignors WHERE id=?",
+                             (cid,)).fetchone()
+    if not consignor:
+        conn.close()
+        abort(404)
+    # Only net, consignor-facing columns leave the database here — never fees,
+    # gross, or the shop's share.
+    entries = conn.execute(
+        """SELECT entry_date, type, description, amount_cents FROM ledger
+           WHERE consignor_id=? ORDER BY entry_date DESC, id DESC""", (cid,)).fetchall()
+    balance = sum(e["amount_cents"] for e in entries)
+    months = {}
+    for e in entries:
+        m = e["entry_date"][:7]
+        g = months.setdefault(m, {"month": m, "entries": [], "credited": 0, "paid": 0})
+        g["entries"].append(dict(e))
+        if e["type"] in ("SALE", "REFUND"):
+            g["credited"] += e["amount_cents"]
+        elif e["type"] == "PAYOUT":
+            g["paid"] += -e["amount_cents"]
+    conn.close()
+    return render_template("portal.html", consignor=consignor, balance=balance,
+                           months=list(months.values()), labels=PORTAL_TYPE_LABELS,
+                           preview=(user["role"] != "consignor"))
+
+
 # ---------------------------------------------------------------- consignors
 
 @app.route("/consignors")
@@ -237,8 +411,18 @@ def consignors():
     aliases = {}
     for a in conn.execute("SELECT * FROM aliases ORDER BY kind, text").fetchall():
         aliases.setdefault(a["consignor_id"], []).append(a)
+    portal_users = {}
+    for u in conn.execute(
+            "SELECT * FROM users WHERE role='consignor' ORDER BY email").fetchall():
+        portal_users.setdefault(u["consignor_id"], []).append(u)
+    open_invites = {}
+    for i in conn.execute(
+            """SELECT * FROM invites WHERE used_at IS NULL
+               AND expires_at > datetime('now') ORDER BY id""").fetchall():
+        open_invites.setdefault(i["consignor_id"], []).append(i)
     conn.close()
-    return render_template("consignors.html", consignors=rows, aliases=aliases)
+    return render_template("consignors.html", consignors=rows, aliases=aliases,
+                           portal_users=portal_users, open_invites=open_invites)
 
 
 @app.route("/consignors/save", methods=["POST"])

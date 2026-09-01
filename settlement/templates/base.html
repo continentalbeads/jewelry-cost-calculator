@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-{% if logged_in %}
+{% if logged_in and is_owner %}
 <nav class="topnav no-print">
   <span class="brand">CBS Settlement</span>
   <a href="{{ url_for('dashboard') }}">Dashboard</a>
@@ -28,7 +28,7 @@
 </nav>
 {% endif %}
 
-{% if logged_in and nav_unverified_fees %}
+{% if logged_in and is_owner and nav_unverified_fees %}
 <div class="banner warn no-print">
   ⚠ {{ nav_unverified_fees }} fee rate{{ 's' if nav_unverified_fees != 1 }} in the schedule
   {{ 'are' if nav_unverified_fees != 1 else 'is' }} seeded placeholder data and UNVERIFIED.

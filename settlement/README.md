@@ -41,6 +41,41 @@ First-time setup, in order:
 5. **Runs** — create a draft run, edit anything in the review table, commit.
 6. **Payouts** — pay via Zelle, mark paid. Print statements from the run page.
 
+## Consignor portal
+
+Consignors get their own read-only portal: their sales (net amounts credited
+only — no fees, no gross, nothing about other consignors), payments received,
+and current balance.
+
+- **Invite**: Consignors page → the consignor's card → *Create invite link* →
+  send them the link (works once, expires in 14 days). They pick their own
+  email and password. *Preview their portal* shows exactly what they'll see.
+- **Revoke**: *Remove access* on the same card deletes their login instantly.
+- Consignor accounts cannot edit anything, cannot reach any owner page or API,
+  and only ever see their own ledger.
+
+### Hosting the portal for consignors outside your network
+
+The app binds to `127.0.0.1`, so out of the box only the Mac it runs on can
+see it. To let consignors reach it from anywhere, put a secure tunnel in
+front of it — recommended: **Cloudflare Tunnel** (free tier is fine):
+
+```bash
+brew install cloudflared
+cloudflared tunnel login                    # one-time, ties to your domain
+cloudflared tunnel create cbs-portal
+cloudflared tunnel route dns cbs-portal portal.yourdomain.com
+cloudflared tunnel run --url http://127.0.0.1:5111 cbs-portal
+```
+
+The Mac mini stays the only place your data lives; Cloudflare terminates
+HTTPS and forwards to the app. Requirements: the Mac must stay on with the
+app and tunnel running (add both to Login Items or a LaunchAgent), and start
+the app with `CBS_HTTPS=1 python3 app.py` so the session cookie is
+HTTPS-only. Alternatives: Tailscale Funnel (similar, no domain needed), or a
+small VPS running the app + Caddy — but then your ledger lives on a rented
+server and you own its updates and backups.
+
 ## Data & backups
 
 - Everything lives in `settlement/data/cbs.sqlite` (created on first start,

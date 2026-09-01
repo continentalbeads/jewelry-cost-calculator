@@ -16,6 +16,8 @@ a { color: #8a5a2b; }
 .nav-user { margin-left: auto; display: flex; gap: 8px; align-items: center;
             color: #b7ad9f; }
 .auth-card { max-width: 440px; margin: 60px auto; }
+.portal-head { display: flex; justify-content: space-between; align-items: flex-start;
+               gap: 12px; flex-wrap: wrap; margin-top: 8px; }
 .badge.warn { background: #c2331f; }
 
 .banner { padding: 10px 20px; }

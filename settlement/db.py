@@ -37,6 +37,11 @@ def init_db():
 
 def migrate(conn):
     """In-place upgrades for databases created by earlier versions."""
+    # 2026-09: consignor portal — users gain role + consignor_id
+    user_cols = [r["name"] for r in conn.execute("PRAGMA table_info(users)")]
+    if "role" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'owner'")
+        conn.execute("ALTER TABLE users ADD COLUMN consignor_id INTEGER REFERENCES consignors(id)")
     # 2026-09: ledger.channel records the sales channel on SALE/REFUND entries
     ledger_cols = [r["name"] for r in conn.execute("PRAGMA table_info(ledger)")]
     if "channel" not in ledger_cols:

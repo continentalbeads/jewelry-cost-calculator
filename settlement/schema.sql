@@ -9,8 +9,21 @@ CREATE TABLE IF NOT EXISTS users (
   id            INTEGER PRIMARY KEY,
   email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
   password_hash TEXT NOT NULL,
+  -- 'owner' sees everything; 'consignor' sees only the read-only portal for
+  -- their own consignor_id (net amounts only, never fees or your share)
+  role          TEXT NOT NULL DEFAULT 'owner' CHECK (role IN ('owner','consignor')),
+  consignor_id  INTEGER REFERENCES consignors(id),
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   last_login    TEXT
+);
+
+CREATE TABLE IF NOT EXISTS invites (
+  id           INTEGER PRIMARY KEY,
+  token        TEXT NOT NULL UNIQUE,
+  consignor_id INTEGER NOT NULL REFERENCES consignors(id),
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at   TEXT NOT NULL,
+  used_at      TEXT
 );
 
 CREATE TABLE IF NOT EXISTS consignors (

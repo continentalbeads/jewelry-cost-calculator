@@ -12,8 +12,14 @@
     <label>Confirm new password <input type="password" name="password2" required minlength="8"></label>
     <div><button type="submit">Change password</button></div>
   </form>
-  <p class="subtle">Forgot your password? Delete the row in the <code>users</code> table of
-  <code>settlement/data/cbs.sqlite</code> (e.g. <code>sqlite3 data/cbs.sqlite "DELETE FROM users"</code>)
+  {% if is_owner %}
+  <p class="subtle">Forgot your password? Delete your row in the <code>users</code> table of
+  <code>settlement/data/cbs.sqlite</code>
+  (e.g. <code>sqlite3 data/cbs.sqlite "DELETE FROM users WHERE role='owner'"</code>)
   and the app will show first-time setup again. Your ledger and settings are untouched.</p>
+  <p><a href="{{ url_for('dashboard') }}">← back to dashboard</a></p>
+  {% else %}
+  <p><a href="{{ url_for('portal_home') }}">← back to your portal</a></p>
+  {% endif %}
 </div>
 {% endblock %}
