@@ -7,10 +7,13 @@ import csv
 import io
 import json
 import os
+import secrets
 import uuid
+from datetime import timedelta
 
 from flask import (Flask, abort, flash, jsonify, redirect, render_template,
-                   request, send_file, url_for)
+                   request, send_file, session, url_for)
+from werkzeug.security import check_password_hash, generate_password_hash
 
 import db
 import fees as feemod
@@ -20,9 +23,29 @@ from util import (apply_bps, fmt_bps, fmt_money, parse_cents, parse_date,
                   parse_int, today)
 
 app = Flask(__name__)
-app.secret_key = "cbs-local-single-user-tool"  # local tool, no auth by design
 
 db.init_db()
+
+
+def _load_secret_key():
+    """Persistent random signing key so sessions survive restarts and cookies
+    can't be forged with a known constant."""
+    conn = db.connect()
+    key = db.get_setting(conn, "secret_key")
+    if not key:
+        key = secrets.token_hex(32)
+        db.set_setting(conn, "secret_key", key)
+        conn.commit()
+    conn.close()
+    return key
+
+
+app.secret_key = _load_secret_key()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",  # blocks cross-site form posts to the app
+    PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+)
 
 app.jinja_env.filters["money"] = fmt_money
 app.jinja_env.filters["bps"] = fmt_bps
@@ -32,8 +55,152 @@ def get_conn():
     return db.connect()
 
 
+# ---------------------------------------------------------------- auth
+
+PUBLIC_ENDPOINTS = {"login", "setup", "static"}
+
+
+@app.before_request
+def require_login():
+    if request.endpoint in PUBLIC_ENDPOINTS or request.endpoint is None:
+        return None
+    conn = get_conn()
+    n_users = conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
+    uid = session.get("uid")
+    user_ok = bool(
+        n_users and uid
+        and conn.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone()
+    )
+    conn.close()
+    if not n_users:
+        return redirect(url_for("setup"))
+    if user_ok:
+        return None
+    session.clear()
+    if request.path.startswith("/api/"):
+        abort(401)
+    nxt = request.path if request.method == "GET" else None
+    return redirect(url_for("login", next=nxt))
+
+
+@app.context_processor
+def auth_ctx():
+    uid = session.get("uid")
+    email = None
+    if uid:
+        conn = get_conn()
+        row = conn.execute("SELECT email FROM users WHERE id=?", (uid,)).fetchone()
+        conn.close()
+        email = row["email"] if row else None
+    return {"logged_in": email is not None, "current_user_email": email}
+
+
+def _safe_next(target):
+    return target if target and target.startswith("/") and not target.startswith("//") else None
+
+
+@app.route("/setup", methods=["GET", "POST"])
+def setup():
+    conn = get_conn()
+    if conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]:
+        conn.close()
+        return redirect(url_for("login"))
+    error = None
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        pw = request.form.get("password", "")
+        pw2 = request.form.get("password2", "")
+        if "@" not in email:
+            error = "Enter a valid email address."
+        elif len(pw) < 8:
+            error = "Password must be at least 8 characters."
+        elif pw != pw2:
+            error = "Passwords don't match."
+        else:
+            cur = conn.execute(
+                "INSERT INTO users (email, password_hash) VALUES (?,?)",
+                (email, generate_password_hash(pw)))
+            db.audit(conn, "users", cur.lastrowid, "created", None, email,
+                     "login account created")
+            conn.commit()
+            conn.close()
+            session.clear()
+            session["uid"] = cur.lastrowid
+            session.permanent = True
+            flash("Account created — you're signed in.", "ok")
+            return redirect(url_for("dashboard"))
+    conn.close()
+    return render_template("setup.html", error=error,
+                           email=request.form.get("email", "dean@continentalbeads.com"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    conn = get_conn()
+    if not conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]:
+        conn.close()
+        return redirect(url_for("setup"))
+    error = None
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        pw = request.form.get("password", "")
+        user = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+        if user and check_password_hash(user["password_hash"], pw):
+            conn.execute("UPDATE users SET last_login=datetime('now') WHERE id=?",
+                         (user["id"],))
+            db.audit(conn, "users", user["id"], "login", None, user["email"], "signed in")
+            conn.commit()
+            conn.close()
+            session.clear()
+            session["uid"] = user["id"]
+            session.permanent = bool(request.form.get("remember"))
+            return redirect(_safe_next(request.form.get("next")) or url_for("dashboard"))
+        db.audit(conn, "users", None, "login_failed", None, email, "bad credentials")
+        conn.commit()
+        error = "Wrong email or password."
+    conn.close()
+    return render_template("login.html", error=error,
+                           next=_safe_next(request.args.get("next")) or "")
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    flash("Signed out.", "ok")
+    return redirect(url_for("login"))
+
+
+@app.route("/account", methods=["GET", "POST"])
+def account():
+    conn = get_conn()
+    user = conn.execute("SELECT * FROM users WHERE id=?", (session["uid"],)).fetchone()
+    if request.method == "POST":
+        current = request.form.get("current_password", "")
+        pw = request.form.get("password", "")
+        pw2 = request.form.get("password2", "")
+        if not check_password_hash(user["password_hash"], current):
+            flash("Current password is wrong.", "error")
+        elif len(pw) < 8:
+            flash("New password must be at least 8 characters.", "error")
+        elif pw != pw2:
+            flash("New passwords don't match.", "error")
+        else:
+            conn.execute("UPDATE users SET password_hash=? WHERE id=?",
+                         (generate_password_hash(pw), user["id"]))
+            db.audit(conn, "users", user["id"], "password", None, "(changed)",
+                     "password changed")
+            conn.commit()
+            flash("Password changed.", "ok")
+        conn.close()
+        return redirect(url_for("account"))
+    conn.close()
+    return render_template("account.html", user=user)
+
+
 @app.context_processor
 def nav_counts():
+    if not session.get("uid"):
+        return {"nav_pending_review": 0, "nav_unverified_fees": 0}
     conn = get_conn()
     pending = conn.execute(
         """SELECT COUNT(*) c FROM import_lines

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}First-time setup — CBS Settlement{% endblock %}
+{% block content %}
+<div class="card auth-card">
+  <h1>First-time setup</h1>
+  <p class="subtle">Create the login for this installation. There's one account — yours.</p>
+  {% if error %}<div class="banner flash-error">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ url_for('setup') }}" class="formgrid" style="grid-template-columns:1fr">
+    <label>Email <input type="email" name="email" value="{{ email }}" required></label>
+    <label>Password (8+ characters) <input type="password" name="password" required minlength="8" autofocus></label>
+    <label>Confirm password <input type="password" name="password2" required minlength="8"></label>
+    <div><button type="submit">Create account &amp; sign in</button></div>
+  </form>
+</div>
+{% endblock %}

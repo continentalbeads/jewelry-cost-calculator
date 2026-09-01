@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+{% if logged_in %}
 <nav class="topnav no-print">
   <span class="brand">CBS Settlement</span>
   <a href="{{ url_for('dashboard') }}">Dashboard</a>
@@ -19,9 +20,14 @@
   <a href="{{ url_for('ten99') }}">1099</a>
   <a href="{{ url_for('aging') }}">Aging</a>
   <a href="{{ url_for('audit_view') }}">Audit</a>
+  <span class="nav-user">
+    <a href="{{ url_for('account') }}" title="account settings">{{ current_user_email }}</a>
+    <form class="inline" method="post" action="{{ url_for('logout') }}"><button class="tiny secondary">Sign out</button></form>
+  </span>
 </nav>
+{% endif %}
 
-{% if nav_unverified_fees %}
+{% if logged_in and nav_unverified_fees %}
 <div class="banner warn no-print">
   ⚠ {{ nav_unverified_fees }} fee rate{{ 's' if nav_unverified_fees != 1 }} in the schedule
   {{ 'are' if nav_unverified_fees != 1 else 'is' }} seeded placeholder data and UNVERIFIED.

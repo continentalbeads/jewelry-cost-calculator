@@ -22,6 +22,11 @@ Open <http://127.0.0.1:5111>.
 
 First-time setup, in order:
 
+0. **Create your login** — the first launch shows a one-time setup screen:
+   confirm your email and pick a password (8+ characters). After that the whole
+   app sits behind a sign-in page. Forgot the password? Delete the row in the
+   `users` table (`sqlite3 data/cbs.sqlite "DELETE FROM users"`) and setup
+   runs again; ledger data is untouched.
 1. **Consignors** — Kevin Long (prefix *Kiowa*), Sue Smith (*Beads Amore*),
    Esther Morse (*Esther*), and Pauline Mariano (*Pauline*) are pre-seeded at
    the default 40% split on a fresh database. Fill in each one's Zelle

@@ -13,6 +13,9 @@ a { color: #8a5a2b; }
 .topnav .brand { font-weight: 700; color: #e0b070; margin-right: 8px; }
 .badge { background: #b3542e; color: #fff; border-radius: 9px; padding: 0 6px;
          font-size: 0.75rem; }
+.nav-user { margin-left: auto; display: flex; gap: 8px; align-items: center;
+            color: #b7ad9f; }
+.auth-card { max-width: 440px; margin: 60px auto; }
 .badge.warn { background: #c2331f; }
 
 .banner { padding: 10px 20px; }

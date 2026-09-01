@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Sign in — CBS Settlement{% endblock %}
+{% block content %}
+<div class="card auth-card">
+  <h1>CBS Settlement — Sign in</h1>
+  {% if error %}<div class="banner flash-error">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ url_for('login') }}" class="formgrid" style="grid-template-columns:1fr">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Email <input type="email" name="email" value="dean@continentalbeads.com" required autofocus></label>
+    <label>Password <input type="password" name="password" required></label>
+    <label class="subtle"><input type="checkbox" name="remember" checked> Keep me signed in on this computer (30 days)</label>
+    <div><button type="submit">Sign in</button></div>
+  </form>
+</div>
+{% endblock %}

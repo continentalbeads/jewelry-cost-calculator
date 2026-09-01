@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Account — CBS Settlement{% endblock %}
+{% block content %}
+<div class="card auth-card">
+  <h1>Account</h1>
+  <p>Signed in as <strong>{{ user.email }}</strong>
+     <span class="subtle">· last sign-in {{ user.last_login or 'first session' }}</span></p>
+  <h2>Change password</h2>
+  <form method="post" action="{{ url_for('account') }}" class="formgrid" style="grid-template-columns:1fr">
+    <label>Current password <input type="password" name="current_password" required></label>
+    <label>New password (8+ characters) <input type="password" name="password" required minlength="8"></label>
+    <label>Confirm new password <input type="password" name="password2" required minlength="8"></label>
+    <div><button type="submit">Change password</button></div>
+  </form>
+  <p class="subtle">Forgot your password? Delete the row in the <code>users</code> table of
+  <code>settlement/data/cbs.sqlite</code> (e.g. <code>sqlite3 data/cbs.sqlite "DELETE FROM users"</code>)
+  and the app will show first-time setup again. Your ledger and settings are untouched.</p>
+</div>
+{% endblock %}

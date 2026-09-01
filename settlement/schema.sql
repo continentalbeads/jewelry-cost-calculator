@@ -5,6 +5,14 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY,
+  email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  password_hash TEXT NOT NULL,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  last_login    TEXT
+);
+
 CREATE TABLE IF NOT EXISTS consignors (
   id                     INTEGER PRIMARY KEY,
   name                   TEXT NOT NULL,
