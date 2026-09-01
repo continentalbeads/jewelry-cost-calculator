@@ -1414,6 +1414,33 @@ def statement(run_id, cid):
     conn.close()
     if not data:
         abort(404)
+    if request.args.get("fmt") == "csv" and request.args.get("view") == "net":
+        # Consignor-facing export: net amounts only — no fees, no gross,
+        # matching what the portal shows.
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["Continental Bead Suppliers - Consignment Statement"])
+        w.writerow(["Consignor", data["consignor"]["name"],
+                    data["consignor"]["business_name"] or ""])
+        w.writerow(["Period", data["run"]["period"]])
+        w.writerow([])
+        w.writerow(["Date", "Activity", "Order/Ref", "Item", "Amount"])
+        labels = {"SALE": "Sale - your share", "REFUND": "Refund",
+                  "PAYOUT": "Payment to you", "CHARGE": "Charge",
+                  "ADJUSTMENT": "Adjustment"}
+        for e in data["entries"]:
+            w.writerow([e["entry_date"], labels.get(e["type"], e["type"]),
+                        e["source_ref"] or "", e["description"] or "",
+                        f"{e['amount_cents']/100:.2f}"])
+        w.writerow([])
+        w.writerow(["Prior balance carried forward", f"{data['prior_balance']/100:.2f}"])
+        w.writerow(["This period", f"{data['activity']/100:.2f}"])
+        w.writerow(["Balance", f"{data['balance_after']/100:.2f}"])
+        w.writerow(["Amount due this period", f"{data['amount_due']/100:.2f}"])
+        buf.seek(0)
+        return send_file(io.BytesIO(buf.getvalue().encode("utf-8-sig")),
+                         mimetype="text/csv", as_attachment=True,
+                         download_name=f"statement-{data['run']['period']}-{data['consignor']['name']}-net.csv")
     if request.args.get("fmt") == "csv":
         buf = io.StringIO()
         w = csv.writer(buf)

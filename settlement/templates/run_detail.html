@@ -29,7 +29,8 @@
   <strong>Statements:</strong>
   {% for c in statement_consignors %}
     <a class="btn secondary" href="{{ url_for('statement', run_id=run.id, cid=c.id) }}">{{ c.name }}</a>
-    <a class="subtle" href="{{ url_for('statement', run_id=run.id, cid=c.id, fmt='csv') }}">(csv)</a>
+    <a class="subtle" href="{{ url_for('statement', run_id=run.id, cid=c.id, fmt='csv') }}" title="every fee itemized">(full csv)</a>
+    <a class="subtle" href="{{ url_for('statement', run_id=run.id, cid=c.id, fmt='csv', view='net') }}" title="net amounts only — no fees shown; matches the portal">(net csv)</a>
   {% endfor %}
   &nbsp; <a class="btn" href="{{ url_for('payouts') }}">Payout worksheet →</a>
 </div>
