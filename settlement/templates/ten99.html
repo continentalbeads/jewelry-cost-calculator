@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}1099-NEC worksheet — CBS Settlement{% endblock %}
+{% block content %}
+<h1>1099-NEC worksheet</h1>
+<p class="subtle">Calendar-year payout totals per consignor. Anyone at or over $600 in a
+year is flagged for a 1099-NEC. Confirm the reporting rules with your accountant.</p>
+
+<table style="max-width:800px">
+  <tr><th>Year</th><th>Consignor</th><th class="num">Total paid</th><th>1099 needed?</th><th>W-9</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.year }}</td>
+    <td>{{ r.name }}{% if r.business_name %} <span class="subtle">({{ r.business_name }})</span>{% endif %}</td>
+    <td class="num">{{ r.paid | money }}</td>
+    <td>{% if r.paid >= threshold %}<span class="pill bad">YES — over $600</span>{% else %}<span class="pill">under threshold</span>{% endif %}</td>
+    <td>{% if r.w9_on_file %}<span class="pill ok">on file</span>{% else %}<span class="pill bad">missing</span>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="subtle">No payouts recorded yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

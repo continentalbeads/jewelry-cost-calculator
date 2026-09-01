@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Payouts — CBS Settlement{% endblock %}
+{% block content %}
+<h1>Payout worksheet</h1>
+<p class="subtle">Amount due floors at zero — a negative balance stays on the books and
+carries forward against future months (no clawbacks). Anyone without a W-9 on file is
+flagged do-not-pay. Marking paid writes a PAYOUT entry to the ledger.</p>
+
+<table>
+  <tr><th>Consignor</th><th>Zelle contact</th><th>W-9</th><th class="num">Balance</th>
+      <th class="num">Amount due</th><th>Mark paid</th></tr>
+  {% for c in rows %}
+  {% set due = c.balance if c.balance > 0 else 0 %}
+  <tr>
+    <td><strong>{{ c.name }}</strong>{% if c.business_name %}<div class="subtle">{{ c.business_name }}</div>{% endif %}
+        <a class="subtle" href="{{ url_for('ledger_view', cid=c.id) }}">ledger</a></td>
+    <td>{{ c.zelle_contact or '—' }}</td>
+    <td>{% if c.w9_on_file %}<span class="pill ok">on file</span>{% else %}<span class="pill bad">MISSING — do not pay</span>{% endif %}</td>
+    <td class="num {{ 'neg' if c.balance < 0 }}">{{ c.balance | money }}
+        {% if c.balance < 0 %}<div class="subtle">deficit carries forward</div>{% endif %}</td>
+    <td class="num"><strong>{{ due | money }}</strong></td>
+    <td>
+      <form method="post" action="{{ url_for('payout_pay') }}" class="inline">
+        <input type="hidden" name="consignor_id" value="{{ c.id }}">
+        <input class="cell" type="text" name="amount" value="{{ '%.2f' % (due / 100) if due else '' }}" placeholder="0.00">
+        <input type="date" name="date" value="{{ today }}">
+        <input type="text" name="method" value="Zelle" style="width:70px">
+        {% if not c.w9_on_file %}
+          <label class="subtle" title="pay despite missing W-9"><input type="checkbox" name="override_w9"> override</label>
+        {% endif %}
+        <button class="tiny" {% if due == 0 and c.balance <= 0 %}title="nothing due"{% endif %}>Paid</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="subtle">No active consignors.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

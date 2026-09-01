@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Runs — CBS Settlement{% endblock %}
+{% block content %}
+<h1>Settlement runs</h1>
+
+<div class="card">
+  <h2>Create a run</h2>
+  <p class="subtle">{{ eligible }} matched, unsettled line{{ 's' if eligible != 1 }} ready to pull in.
+  {% if nav_pending_review %}<strong class="neg">{{ nav_pending_review }} lines still need review first.</strong>{% endif %}
+  The period month controls which recurring monthly charges post on commit.</p>
+  <form method="post" action="{{ url_for('run_create') }}" class="formgrid" style="max-width:600px">
+    <label>Period <input type="month" name="period" value="{{ default_period }}"></label>
+    <label>Label <input type="text" name="label" placeholder="Settlement {{ default_period }}"></label>
+    <div><button type="submit">Create draft run</button></div>
+  </form>
+</div>
+
+<table>
+  <tr><th>Run</th><th>Period</th><th>Status</th><th>Created</th><th>Committed</th><th>Backup</th><th></th></tr>
+  {% for r in runs %}
+  <tr>
+    <td><a href="{{ url_for('run_detail', run_id=r.id) }}">#{{ r.id }} {{ r.label }}</a></td>
+    <td>{{ r.period }}</td>
+    <td><span class="pill {{ 'ok' if r.status == 'committed' }}">{{ r.status }}</span></td>
+    <td>{{ r.created_at }}</td>
+    <td>{{ r.committed_at or '' }}</td>
+    <td class="subtle">{{ r.backup_path.rsplit('/', 1)[-1] if r.backup_path else '' }}</td>
+    <td>{% if r.status == 'draft' %}
+      <form class="inline" method="post" action="{{ url_for('run_delete', run_id=r.id) }}"
+            onsubmit="return confirm('Delete this draft? Its lines return to the pool.')">
+        <button class="tiny danger">Delete draft</button></form>
+    {% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="subtle">No runs yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

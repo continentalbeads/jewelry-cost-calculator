@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Aging report — CBS Settlement{% endblock %}
+{% block content %}
+<h1>Inventory aging report</h1>
+{% if not count %}
+<div class="card">
+  <p><strong>Stub — inventory import isn't built yet.</strong> The hook exists: the
+  <code>inventory_items</code> table (consignor, SKU, description, date first listed,
+  price, sold flag) is already in the schema. Once inventory is loaded, this page shows
+  days-since-listed for every unsold item, flagging <strong>past 6 months</strong>
+  (10% markdown due) and <strong>past 12 months</strong> (25% cumulative markdown).</p>
+</div>
+{% else %}
+<table>
+  <tr><th>Consignor</th><th>SKU</th><th>Item</th><th class="num">Price</th>
+      <th>Listed</th><th class="num">Days</th><th>Markdown</th></tr>
+  {% for i in items %}
+  <tr>
+    <td>{{ i.consignor_name or '—' }}</td><td>{{ i.sku or '' }}</td><td>{{ i.description }}</td>
+    <td class="num">{{ i.price_cents | money }}</td><td>{{ i.listed_date }}</td>
+    <td class="num">{{ i.days_listed }}</td>
+    <td>{% if i.days_listed >= 365 %}<span class="pill bad">25% cumulative (12+ mo)</span>
+        {% elif i.days_listed >= 183 %}<span class="pill bad">10% due (6+ mo)</span>
+        {% else %}<span class="pill ok">current</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

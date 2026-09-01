@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Review queue — CBS Settlement{% endblock %}
+
+{% macro line_cells(l) %}
+  <td>{{ l.order_ref or '' }}<div class="subtle">{{ l.order_date or 'no date' }}</div></td>
+  <td>
+    <form class="inline" method="post" action="{{ url_for('line_channel', lid=l.id) }}">
+      <select name="channel" onchange="this.form.submit()">
+        {% for ch in channels %}<option {% if ch == l.channel %}selected{% endif %}>{{ ch }}</option>{% endfor %}
+        {% if l.channel and l.channel not in channels %}<option selected>{{ l.channel }}</option>{% endif %}
+      </select>
+    </form>
+    {% if l.channel_raw %}<div class="subtle">src: {{ l.channel_raw }}</div>{% endif %}
+  </td>
+  <td>{{ l.sku or '' }}</td>
+  <td>{{ l.title }}
+    {% if l.is_refund %}<span class="pill bad">refund</span>{% endif %}
+    {% if l.refund_warning and not l.is_refund %}<span class="pill bad" title="order financial status mentions a refund — check whether this line needs a manual REFUND entry">refund on order?</span>{% endif %}
+  </td>
+  <td class="num {{ 'neg' if l.gross_cents < 0 }}">{{ l.gross_cents | money }}</td>
+{% endmacro %}
+
+{% block content %}
+<h1>Review queue</h1>
+<p class="subtle">Nothing gets settled until every fuzzy match is confirmed or reassigned and
+every unmatched line is assigned or explicitly dismissed as not-consignment. Lines are never
+dropped silently.</p>
+<form class="inline" method="post" action="{{ url_for('rematch') }}">
+  <button class="secondary">Re-run matching on pending lines</button>
+</form>
+
+<h2>Fuzzy matches — confirm these ({{ fuzzy | length }})</h2>
+<table>
+  <tr><th>Order</th><th>Channel</th><th>SKU</th><th>Raw title (as typed)</th><th class="num">Gross</th>
+      <th>Suggested</th><th class="num">Score</th><th>Actions</th></tr>
+  {% for l in fuzzy %}
+  <tr>
+    {{ line_cells(l) }}
+    <td><strong>{{ l.consignor_name }}</strong><div class="subtle">{{ l.match_method }}</div></td>
+    <td class="num">{{ '%.0f' % (l.match_score * 100) }}%</td>
+    <td>
+      <form class="inline" method="post" action="{{ url_for('line_confirm', lid=l.id) }}"><button class="tiny">Confirm</button></form>
+      <form class="inline" method="post" action="{{ url_for('line_assign', lid=l.id) }}">
+        <select name="consignor_id">{% for c in consignors %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+        <button class="tiny secondary">Assign instead</button>
+      </form>
+      <form class="inline" method="post" action="{{ url_for('line_dismiss', lid=l.id) }}"><button class="tiny danger">Not consignment</button></form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8" class="subtle">None pending.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Unmatched — assign or dismiss ({{ unmatched | length }})</h2>
+{% if unmatched %}
+<form class="inline" method="post" action="{{ url_for('dismiss_unmatched') }}"
+      onsubmit="return confirm('Dismiss ALL {{ unmatched | length }} remaining unmatched lines as not-consignment? (Assign any consignment lines first.)')">
+  <button class="danger">Dismiss all remaining as not-consignment</button>
+</form>
+{% endif %}
+<table>
+  <tr><th>Order</th><th>Channel</th><th>SKU</th><th>Raw title (as typed)</th><th class="num">Gross</th><th>Assign</th></tr>
+  {% for l in unmatched %}
+  <tr>
+    {{ line_cells(l) }}
+    <td>
+      <form class="inline" method="post" action="{{ url_for('line_assign', lid=l.id) }}">
+        <select name="consignor_id">{% for c in consignors %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+        <label class="subtle"><input type="checkbox" name="save_alias" checked> save alias:</label>
+        <input type="text" name="alias_text" value="{{ (l.title or '').split(' ') | first }}" style="width:110px" title="text pattern to auto-match next time">
+        <button class="tiny">Assign</button>
+      </form>
+      <form class="inline" method="post" action="{{ url_for('line_dismiss', lid=l.id) }}"><button class="tiny danger">Dismiss</button></form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="subtle">None pending.</td></tr>
+  {% endfor %}
+</table>
+
+<details>
+  <summary>Confident matches ({{ confident | length }}) — spot-check for wrong auto-matches</summary>
+  <table>
+    <tr><th>Order</th><th>Channel</th><th>SKU</th><th>Title</th><th class="num">Gross</th><th>Matched to</th><th></th></tr>
+    {% for l in confident %}
+    <tr>
+      {{ line_cells(l) }}
+      <td><strong>{{ l.consignor_name }}</strong><div class="subtle">{{ l.match_method }}</div></td>
+      <td>
+        <form class="inline" method="post" action="{{ url_for('line_restore', lid=l.id) }}"><button class="tiny secondary">Unmatch</button></form>
+        <form class="inline" method="post" action="{{ url_for('line_dismiss', lid=l.id) }}"><button class="tiny danger">Not consignment</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</details>
+
+<details>
+  <summary>Dismissed as not-consignment ({{ dismissed | length }})</summary>
+  <table>
+    <tr><th>Order</th><th>Channel</th><th>SKU</th><th>Title</th><th class="num">Gross</th><th></th></tr>
+    {% for l in dismissed %}
+    <tr>
+      {{ line_cells(l) }}
+      <td><form class="inline" method="post" action="{{ url_for('line_restore', lid=l.id) }}"><button class="tiny secondary">Restore to queue</button></form></td>
+    </tr>
+    {% endfor %}
+  </table>
+</details>
+
+{% if not fuzzy and not unmatched %}
+<div class="card">✅ Queue clear — <a href="{{ url_for('runs') }}">create a settlement run</a>.</div>
+{% endif %}
+{% endblock %}

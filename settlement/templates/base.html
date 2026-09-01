@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}CBS Settlement{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav class="topnav no-print">
+  <span class="brand">CBS Settlement</span>
+  <a href="{{ url_for('dashboard') }}">Dashboard</a>
+  <a href="{{ url_for('import_page') }}">Import</a>
+  <a href="{{ url_for('review') }}">Review Queue{% if nav_pending_review %} <span class="badge">{{ nav_pending_review }}</span>{% endif %}</a>
+  <a href="{{ url_for('runs') }}">Runs</a>
+  <a href="{{ url_for('payouts') }}">Payouts</a>
+  <a href="{{ url_for('consignors') }}">Consignors</a>
+  <a href="{{ url_for('fee_schedule') }}">Fees{% if nav_unverified_fees %} <span class="badge warn">{{ nav_unverified_fees }}</span>{% endif %}</a>
+  <a href="{{ url_for('ten99') }}">1099</a>
+  <a href="{{ url_for('aging') }}">Aging</a>
+  <a href="{{ url_for('audit_view') }}">Audit</a>
+</nav>
+
+{% if nav_unverified_fees %}
+<div class="banner warn no-print">
+  ⚠ {{ nav_unverified_fees }} fee rate{{ 's' if nav_unverified_fees != 1 }} in the schedule
+  {{ 'are' if nav_unverified_fees != 1 else 'is' }} seeded placeholder data and UNVERIFIED.
+  <a href="{{ url_for('fee_schedule') }}">Confirm the real numbers</a> before your first real run.
+</div>
+{% endif %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div class="banner flash-{{ cat }} no-print">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<main>
+{% block content %}{% endblock %}
+</main>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

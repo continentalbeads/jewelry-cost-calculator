@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Consignors — CBS Settlement{% endblock %}
+{% block content %}
+<h1>Consignors</h1>
+
+{% for c in consignors %}
+<div class="card">
+  <details {% if not c.active %}{% else %}open{% endif %}>
+    <summary>
+      {{ c.name }}{% if c.business_name %} — {{ c.business_name }}{% endif %}
+      {% if not c.active %}<span class="pill">inactive</span>{% endif %}
+      <span class="subtle">split {{ c.split_bps | bps }} ·
+        W-9 {% if c.w9_on_file %}<span class="pill ok">on file</span>{% else %}<span class="pill bad">missing</span>{% endif %}</span>
+    </summary>
+    <form method="post" action="{{ url_for('consignor_save') }}" class="formgrid">
+      <input type="hidden" name="id" value="{{ c.id }}">
+      <label>Name <input type="text" name="name" value="{{ c.name }}" required></label>
+      <label>Business name <input type="text" name="business_name" value="{{ c.business_name or '' }}"></label>
+      <label>Split % to consignor <input type="number" name="split_pct" step="0.01" min="0" max="100" value="{{ c.split_bps / 100 }}"></label>
+      <label>Zelle contact <input type="text" name="zelle_contact" value="{{ c.zelle_contact or '' }}"></label>
+      <label>W-9 on file <input type="checkbox" name="w9_on_file" {% if c.w9_on_file %}checked{% endif %}></label>
+      <label>Active <input type="checkbox" name="active" {% if c.active %}checked{% endif %}></label>
+      <label>Monthly charge $ (optional) <input type="text" name="recurring_charge" value="{{ '%.2f' % (c.recurring_charge_cents / 100) if c.recurring_charge_cents else '' }}" placeholder="e.g. 50.00"></label>
+      <label>Charge start <input type="date" name="recurring_charge_start" value="{{ c.recurring_charge_start or '' }}"></label>
+      <label>Charge end (optional) <input type="date" name="recurring_charge_end" value="{{ c.recurring_charge_end or '' }}"></label>
+      <label>Charge note <input type="text" name="recurring_charge_note" value="{{ c.recurring_charge_note or '' }}" placeholder="Display case rental"></label>
+      <div><button type="submit">Save</button></div>
+    </form>
+
+    <h2>Prefixes &amp; aliases</h2>
+    <p class="subtle">Prefixes match SKU starts (e.g. <code>Kiowa-1234</code>) and title text; aliases match title text only. Add typo variants here (or save them from the review queue).</p>
+    {% for a in aliases.get(c.id, []) %}
+      <span class="pill">{{ a.text }} <span class="subtle">({{ a.kind }})</span></span>
+      <form class="inline" method="post" action="{{ url_for('alias_delete', aid=a.id) }}"><button class="tiny secondary" title="delete">×</button></form>
+    {% endfor %}
+    <form class="inline" method="post" action="{{ url_for('alias_add', cid=c.id) }}">
+      <input type="text" name="text" placeholder="new prefix/alias" required>
+      <select name="kind"><option value="prefix">prefix (SKU + title)</option><option value="alias">alias (title only)</option></select>
+      <button class="tiny">Add</button>
+    </form>
+    <div style="margin-top:8px"><a href="{{ url_for('ledger_view', cid=c.id) }}">View ledger</a></div>
+  </details>
+</div>
+{% endfor %}
+
+<div class="card">
+  <h2>Add consignor</h2>
+  <form method="post" action="{{ url_for('consignor_save') }}" class="formgrid">
+    <label>Name <input type="text" name="name" required></label>
+    <label>Business name <input type="text" name="business_name"></label>
+    <label>SKU/title prefix <input type="text" name="initial_prefix" placeholder="e.g. Kiowa"></label>
+    <label>Split % to consignor <input type="number" name="split_pct" step="0.01" min="0" max="100" value="40"></label>
+    <label>Zelle contact <input type="text" name="zelle_contact"></label>
+    <label>W-9 on file <input type="checkbox" name="w9_on_file"></label>
+    <label>Active <input type="checkbox" name="active" checked></label>
+    <div><button type="submit">Add consignor</button></div>
+  </form>
+</div>
+{% endblock %}

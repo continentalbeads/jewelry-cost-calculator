@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Audit log — CBS Settlement{% endblock %}
+{% block content %}
+<h1>Audit log</h1>
+<p class="subtle">Every edit anywhere in the tool — old value, new value, timestamp (most recent 300).</p>
+<table>
+  <tr><th>When</th><th>Table</th><th>Record</th><th>Field</th><th>Old</th><th>New</th><th>Context</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.changed_at }}</td><td>{{ r.table_name }}</td><td>{{ r.record_id or '' }}</td>
+    <td>{{ r.field or '' }}</td><td>{{ r.old_value or '' }}</td><td>{{ r.new_value or '' }}</td>
+    <td class="subtle">{{ r.context or '' }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="subtle">Nothing yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

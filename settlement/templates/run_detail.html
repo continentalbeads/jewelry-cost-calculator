@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Run #{{ run.id }} — CBS Settlement{% endblock %}
+{% block content %}
+{% set draft = run.status == 'draft' %}
+<h1>Run #{{ run.id }} — {{ run.label }} <span class="pill {{ 'ok' if not draft }}">{{ run.status }}</span></h1>
+<p class="subtle">Period {{ run.period }}.
+{% if draft %}
+  Every number below is editable before commit: gross, each individual fee, the split, ad-hoc
+  fees, exclusions, and manual lines. Edits are flagged <span class="flag">✎</span> with the
+  original kept, and everything is written to the audit log. Excluding a line defers it — it
+  returns to the pool for a future run.
+{% else %}
+  Committed {{ run.committed_at }}. Ledger entries are append-only — corrections go in as
+  adjustments from a consignor's ledger page.
+{% endif %}</p>
+
+{% if not draft and statement_consignors %}
+<div class="card">
+  <strong>Statements:</strong>
+  {% for c in statement_consignors %}
+    <a class="btn secondary" href="{{ url_for('statement', run_id=run.id, cid=c.id) }}">{{ c.name }}</a>
+    <a class="subtle" href="{{ url_for('statement', run_id=run.id, cid=c.id, fmt='csv') }}">(csv)</a>
+  {% endfor %}
+  &nbsp; <a class="btn" href="{{ url_for('payouts') }}">Payout worksheet →</a>
+</div>
+{% endif %}
+
+<table>
+  <tr>
+    <th>Date / Order</th><th>Channel</th><th>Description</th>
+    <th class="num">Gross</th><th>Fees (each editable)</th><th class="num">Fee total</th>
+    <th class="num">Net</th><th class="num">Split %</th><th class="num">Consignor</th>
+    <th class="num">CBS</th><th>Excl.</th><th>Note</th>
+  </tr>
+  {% for cname, group in lines | groupby('consignor_name') %}
+  <tr><th colspan="12" style="background:#e0d8ca">{{ cname }}</th></tr>
+    {% for l in group %}
+    <tr data-line-id="{{ l.id }}" data-consignor="{{ l.consignor_id }}"
+        data-gross="{{ l.gross_cents }}" data-fee="{{ l.fee_total }}" data-net="{{ l.net_cents }}"
+        data-share="{{ l.consignor_share_cents }}" data-mine="{{ l.my_share_cents }}"
+        data-excluded="{{ l.excluded }}"
+        class="{{ 'excluded' if l.excluded }} {{ 'edited-row' if l.edited }}">
+      <td class="keep">{{ l.order_date or '' }}<div class="subtle">{{ l.order_ref or '' }}</div></td>
+      <td>
+        {% if draft %}
+        <select data-api-field="channel" data-line="{{ l.id }}">
+          <option value="">—</option>
+          {% for ch in channels %}<option {% if ch == l.channel %}selected{% endif %}>{{ ch }}</option>{% endfor %}
+          {% if l.channel and l.channel not in channels %}<option selected>{{ l.channel }}</option>{% endif %}
+        </select>
+        {% else %}{{ l.channel or '' }}{% endif %}
+      </td>
+      <td>{{ l.description }}
+        {% if l.entry_type == 'REFUND' %}<span class="pill bad">refund</span>{% endif %}
+        {% if l.manual %}<span class="pill">manual</span>{% endif %}
+        {% if l.edited %}<span class="flag" title="manually edited — original values kept; see audit log">✎</span>{% endif %}
+      </td>
+      <td class="num">
+        {% if draft %}
+        <input class="cell {{ 'dirty' if l.original_gross_cents is not none }}" data-api-field="gross" data-line="{{ l.id }}"
+               value="{{ '%.2f' % (l.gross_cents / 100) }}"
+               {% if l.original_gross_cents is not none %}title="original: {{ l.original_gross_cents | money }}"{% endif %}>
+        {% else %}{{ l.gross_cents | money }}{% endif %}
+      </td>
+      <td>
+        <ul class="fee-list">
+          {% for f in l.fees %}
+          <li class="{{ 'removed' if f.removed }}">
+            <span class="fee-name" title="{{ f.fee_name }}">{{ f.fee_name }}</span>
+            {% if draft %}
+            <input class="cell small {{ 'dirty' if f.original_amount_cents is not none }}" data-fee-id="{{ f.id }}"
+                   value="{{ '%.2f' % (f.amount_cents / 100) }}" {% if f.removed %}disabled{% endif %}
+                   {% if f.original_amount_cents is not none %}title="original: {{ f.original_amount_cents | money }}"{% endif %}>
+            <button class="tiny secondary" data-fee-toggle="{{ f.id }}" data-removed="{{ f.removed }}"
+                    title="{{ 'restore this fee' if f.removed else 'remove this fee' }}">{{ '↩' if f.removed else '×' }}</button>
+            {% else %}<span class="num">{{ f.amount_cents | money }}</span>{% endif %}
+          </li>
+          {% else %}
+          <li class="subtle">no fees{% if draft %} (channel has no schedule rows for this date){% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% if draft %}
+        <button class="tiny secondary" data-add-fee="{{ l.id }}">+ fee</button>
+        <button class="tiny secondary" data-reset-fees="{{ l.id }}" title="recompute from fee schedule (uses current channel/date/gross)">↻ schedule</button>
+        {% endif %}
+      </td>
+      <td class="num" data-role="fee-total">{{ l.fee_total | money }}</td>
+      <td class="num {{ 'neg' if l.net_cents < 0 }}" data-role="net">{{ l.net_cents | money }}</td>
+      <td class="num">
+        {% if draft %}
+        <input class="cell small {{ 'dirty' if l.original_split_bps is not none }}" data-api-field="split_pct" data-line="{{ l.id }}"
+               value="{{ l.split_bps / 100 }}"
+               {% if l.original_split_bps is not none %}title="original: {{ l.original_split_bps | bps }}"{% endif %}>
+        {% else %}{{ l.split_bps | bps }}{% endif %}
+      </td>
+      <td class="num {{ 'neg' if l.consignor_share_cents < 0 }}" data-role="share">{{ l.consignor_share_cents | money }}</td>
+      <td class="num {{ 'neg' if l.my_share_cents < 0 }}" data-role="mine">{{ l.my_share_cents | money }}</td>
+      <td class="keep">
+        {% if draft %}<input type="checkbox" data-api-field="excluded" data-line="{{ l.id }}" {% if l.excluded %}checked{% endif %} title="exclude from this run (returns to pool)">
+        {% elif l.excluded %}excluded{% endif %}
+      </td>
+      <td>{% if draft %}<input class="cell wide" data-api-field="note" data-line="{{ l.id }}" value="{{ l.note or '' }}" placeholder="why edited…">{% else %}{{ l.note or '' }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  <tr data-consignor-total="{{ group[0].consignor_id }}" class="totals">
+    <td colspan="3">{{ cname }} subtotal</td>
+    <td class="num" data-total="gross"></td><td></td><td class="num" data-total="fee"></td>
+    <td class="num" data-total="net"></td><td></td>
+    <td class="num" data-total="share"></td><td class="num" data-total="mine"></td>
+    <td colspan="2"></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="12" class="subtle">No lines in this run yet — add manual lines below or import & match first.</td></tr>
+  {% endfor %}
+  <tr data-grand-total class="totals">
+    <td colspan="3">TOTAL (excluded lines omitted)</td>
+    <td class="num" data-total="gross"></td><td></td><td class="num" data-total="fee"></td>
+    <td class="num" data-total="net"></td><td></td>
+    <td class="num" data-total="share"></td><td class="num" data-total="mine"></td>
+    <td colspan="2"></td>
+  </tr>
+</table>
+
+{% if draft %}
+<div class="card">
+  <h2>Add a manual line (not in the CSV)</h2>
+  <form method="post" action="{{ url_for('run_add_line', run_id=run.id) }}" class="formgrid">
+    <label>Consignor
+      <select name="consignor_id" required>{% for c in consignors %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+    </label>
+    <label>Type <select name="entry_type"><option>SALE</option><option>REFUND</option></select></label>
+    <label>Date <input type="date" name="order_date" value="{{ today }}"></label>
+    <label>Order ref <input type="text" name="order_ref"></label>
+    <label>Description <input type="text" name="description" required></label>
+    <label>Gross $ <input type="text" name="gross" required placeholder="25.00"></label>
+    <label>Channel <select name="channel"><option value="">— none —</option>{% for ch in channels %}<option>{{ ch }}</option>{% endfor %}</select></label>
+    <label>Auto-apply schedule fees <input type="checkbox" name="apply_fees" checked></label>
+    <label>Note <input type="text" name="note"></label>
+    <div><button type="submit">Add line</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <form method="post" action="{{ url_for('run_commit', run_id=run.id) }}"
+        onsubmit="return confirm('Commit this run to the ledger? The database is backed up first. Committed entries are append-only.')">
+    <button style="font-size:1.05rem">Commit run to ledger</button>
+    <span class="subtle">Backs up the database, writes SALE/REFUND ledger entries for every
+    non-excluded line, posts recurring monthly charges for {{ run.period }}, then opens the
+    payout worksheet.</span>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

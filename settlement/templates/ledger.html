@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Ledger — {{ consignor.name }}{% endblock %}
+{% block content %}
+<h1>Ledger — {{ consignor.name }}</h1>
+<p>Balance: <strong class="{{ 'neg' if balance < 0 }}">{{ balance | money }}</strong>
+   <span class="subtle">(append-only; corrections are new ADJUSTMENT entries, newest first)</span></p>
+
+<div class="card no-print">
+  <h2>Add adjustment</h2>
+  <form method="post" action="{{ url_for('ledger_adjust', cid=consignor.id) }}" class="formgrid" style="max-width:900px">
+    <label>Date <input type="date" name="date" value="{{ today }}"></label>
+    <label>Amount $ (± sign, e.g. -12.50) <input type="text" name="amount" required></label>
+    <label>Description <input type="text" name="description"></label>
+    <label>Note (required — why?) <input type="text" name="note" required></label>
+    <div><button type="submit">Add adjustment</button></div>
+  </form>
+</div>
+
+<table>
+  <tr><th>Date</th><th>Type</th><th>Ref</th><th>Description</th>
+      <th class="num">Gross</th><th class="num">Fees</th><th class="num">Net</th>
+      <th class="num">Amount</th><th class="num">Balance</th><th>Note</th></tr>
+  {% for e in rows %}
+  <tr>
+    <td>{{ e.entry_date }}</td>
+    <td><span class="pill {{ 'bad' if e.type in ('REFUND','CHARGE') }}">{{ e.type }}</span>
+        {% if e.manually_edited %}<span class="flag" title="contains manual edits — see audit log">✎</span>{% endif %}</td>
+    <td>{{ e.source_ref or '' }}{% if e.run_id %}<div class="subtle"><a href="{{ url_for('run_detail', run_id=e.run_id) }}">run {{ e.run_id }}</a></div>{% endif %}</td>
+    <td>{{ e.description or '' }}</td>
+    <td class="num">{% if e.type in ('SALE','REFUND') %}{{ e.gross_cents | money }}{% endif %}</td>
+    <td class="num">{% if e.type in ('SALE','REFUND') %}{{ e.fee_cents | money }}{% endif %}</td>
+    <td class="num">{% if e.type in ('SALE','REFUND') %}{{ e.net_cents | money }}{% endif %}</td>
+    <td class="num {{ 'neg' if e.amount_cents < 0 }}">{{ e.amount_cents | money }}</td>
+    <td class="num {{ 'neg' if e.running < 0 }}">{{ e.running | money }}</td>
+    <td class="subtle">{{ e.note or '' }}{% if e.payout_method %} via {{ e.payout_method }}{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="10" class="subtle">No entries yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

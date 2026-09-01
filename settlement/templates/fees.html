@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Fee schedule — CBS Settlement{% endblock %}
+{% block content %}
+<h1>Fee schedule</h1>
+<p class="subtle">
+  A fee row applies to a line when its channel matches, it's marked deductible, and the
+  order date falls inside its effective window. Multiple rows per channel stack.
+  When a platform changes a rate mid-month: set the old row's <em>effective to</em> to the
+  last day at the old rate, then add a new row starting the next day — each order line
+  uses the rate in effect on its own date.
+  Rows marked <span class="pill bad">unverified</span> were seeded as placeholders —
+  correct the numbers and tick <em>verified</em>.
+</p>
+
+<table>
+  <tr><th>Channel</th><th>Fee</th><th class="num">%</th><th class="num">Fixed $</th>
+      <th>From</th><th>To</th><th>Deductible</th><th>Status</th><th></th></tr>
+  {% for f in fees %}
+  <tr>
+    <form method="post" action="{{ url_for('fee_update', fid=f.id) }}">
+    <td>{{ f.channel }}</td>
+    <td>{{ f.fee_name }}</td>
+    <td class="num"><input class="cell small" type="number" step="0.01" name="percent" value="{{ f.percent_bps / 100 }}"></td>
+    <td class="num"><input class="cell small" type="text" name="fixed" value="{{ '%.2f' % (f.fixed_cents / 100) }}"></td>
+    <td><input type="date" name="effective_from" value="{{ f.effective_from }}"></td>
+    <td><input type="date" name="effective_to" value="{{ f.effective_to or '' }}"></td>
+    <td><input type="checkbox" name="deductible" {% if f.deductible %}checked{% endif %}>
+        {% if not f.deductible %}<span class="subtle">not auto-applied</span>{% endif %}</td>
+    <td>
+      {% if f.verified %}<span class="pill ok">verified</span>
+      {% else %}<span class="pill bad">unverified</span>{% endif %}
+      <input type="checkbox" name="verified" {% if f.verified %}checked{% endif %} title="verified">
+    </td>
+    <td><button class="tiny">Save</button></td>
+    </form>
+  </tr>
+  {% endfor %}
+</table>
+
+<div class="card">
+  <h2>Add fee row</h2>
+  <form method="post" action="{{ url_for('fee_add') }}" class="formgrid">
+    <label>Channel <input type="text" name="channel" list="channels" required></label>
+    <datalist id="channels">{% for ch in fees | map(attribute='channel') | unique %}<option value="{{ ch }}">{% endfor %}</datalist>
+    <label>Fee name <input type="text" name="fee_name" required></label>
+    <label>Percent (e.g. 2.9) <input type="number" name="percent" step="0.01" value="0"></label>
+    <label>Fixed $ (e.g. 0.30) <input type="text" name="fixed" value="0"></label>
+    <label>Effective from <input type="date" name="effective_from" value="{{ today }}"></label>
+    <label>Effective to (blank = open) <input type="date" name="effective_to"></label>
+    <label>Deductible <input type="checkbox" name="deductible" checked></label>
+    <div><button type="submit">Add</button></div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<h2>Consignor balances</h2>
+<div class="cards">
+  {% for c in consignors %}
+  <div class="card">
+    <strong>{{ c.name }}</strong>
+    {% if c.business_name %}<div class="subtle">{{ c.business_name }}</div>{% endif %}
+    <div style="font-size:1.3rem" class="{{ 'neg' if c.balance < 0 }}">{{ c.balance | money }}</div>
+    {% if c.balance < 0 %}<div class="subtle">deficit carries forward — no clawback</div>{% endif %}
+    <div class="subtle">
+      split {{ c.split_bps | bps }} to them ·
+      W-9 {% if c.w9_on_file %}<span class="pill ok">on file</span>{% else %}<span class="pill bad">missing</span>{% endif %}
+    </div>
+    <a href="{{ url_for('ledger_view', cid=c.id) }}">ledger</a>
+  </div>
+  {% else %}
+  <div class="card">No consignors yet — <a href="{{ url_for('consignors') }}">add your four consignors</a> first.</div>
+  {% endfor %}
+</div>
+
+<h2>Monthly workflow</h2>
+<ol>
+  <li><a href="{{ url_for('fee_schedule') }}">Verify fee rates</a> (first time only, and whenever a platform changes a rate)</li>
+  <li><a href="{{ url_for('import_page') }}">Import</a> the Shopify order export CSV</li>
+  <li><a href="{{ url_for('review') }}">Clear the review queue</a> — confirm fuzzy matches, assign or dismiss unmatched lines</li>
+  <li><a href="{{ url_for('runs') }}">Create a settlement run</a>, review/edit every number, commit</li>
+  <li><a href="{{ url_for('payouts') }}">Pay out</a> via Zelle and mark paid; print statements from the run page</li>
+</ol>
+
+<h2>Recent runs</h2>
+<table>
+  <tr><th>Run</th><th>Period</th><th>Status</th><th>Created</th><th>Committed</th></tr>
+  {% for r in runs %}
+  <tr>
+    <td><a href="{{ url_for('run_detail', run_id=r.id) }}">#{{ r.id }} {{ r.label }}</a></td>
+    <td>{{ r.period }}</td>
+    <td><span class="pill {{ 'ok' if r.status == 'committed' }}">{{ r.status }}</span></td>
+    <td>{{ r.created_at }}</td><td>{{ r.committed_at or '' }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="subtle">No runs yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

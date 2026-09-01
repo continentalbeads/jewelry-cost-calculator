@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Statement — {{ consignor.name }} {{ run.period }}{% endblock %}
+{% block content %}
+<p class="no-print">
+  <button onclick="window.print()">Print / Save as PDF</button>
+  <a class="btn secondary" href="{{ url_for('statement', run_id=run.id, cid=consignor.id, fmt='csv') }}">Download CSV</a>
+  <a class="btn secondary" href="{{ url_for('run_detail', run_id=run.id) }}">← back to run</a>
+</p>
+
+<div class="statement">
+  <div class="head">
+    <div>
+      <h1>Consignment Statement</h1>
+      <div><strong>Continental Bead Suppliers</strong><br>Las Vegas, NV</div>
+    </div>
+    <div style="text-align:right">
+      <div><strong>{{ consignor.name }}</strong></div>
+      {% if consignor.business_name %}<div>{{ consignor.business_name }}</div>{% endif %}
+      <div>Period: {{ run.period }}</div>
+      <div class="subtle">Run #{{ run.id }} · issued {{ run.committed_at[:10] if run.committed_at }}</div>
+    </div>
+  </div>
+
+  <p class="subtle">Every fee deducted below is an actual third-party charge incurred to
+  complete that specific sale, itemized so you can verify each one. Shipping paid by the
+  customer is excluded from gross sale price and is never deducted as a fee.</p>
+
+  <table>
+    <tr><th>Date</th><th>Order</th><th>Item</th><th class="num">Gross</th>
+        <th class="num">Fees</th><th class="num">Net proceeds</th><th class="num">Your share</th></tr>
+    {% for e in entries if e.type in ('SALE', 'REFUND') %}
+    <tr>
+      <td>{{ e.entry_date }}</td>
+      <td>{{ e.source_ref or '' }}</td>
+      <td>{{ e.description }}{% if e.type == 'REFUND' %} <span class="pill bad">refund</span>{% endif %}</td>
+      <td class="num {{ 'neg' if e.gross_cents < 0 }}">{{ e.gross_cents | money }}</td>
+      <td class="num">{{ e.fee_cents | money }}</td>
+      <td class="num {{ 'neg' if e.net_cents < 0 }}">{{ e.net_cents | money }}</td>
+      <td class="num {{ 'neg' if e.amount_cents < 0 }}">{{ e.amount_cents | money }}</td>
+    </tr>
+    {% for f in e.fee_items %}
+    <tr class="stmt-fee"><td></td><td></td><td>· {{ f.name }}</td><td></td>
+        <td class="num">{{ f.amount_cents | money }}</td><td></td><td></td></tr>
+    {% endfor %}
+    {% endfor %}
+    {% for e in entries if e.type not in ('SALE', 'REFUND') %}
+    <tr>
+      <td>{{ e.entry_date }}</td><td></td>
+      <td>{{ e.type | title }}: {{ e.description }}</td>
+      <td></td><td></td><td></td>
+      <td class="num {{ 'neg' if e.amount_cents < 0 }}">{{ e.amount_cents | money }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="totals"><td colspan="6">Prior balance carried forward</td>
+        <td class="num {{ 'neg' if prior_balance < 0 }}">{{ prior_balance | money }}</td></tr>
+    <tr class="totals"><td colspan="6">This period's activity</td>
+        <td class="num {{ 'neg' if activity < 0 }}">{{ activity | money }}</td></tr>
+    <tr class="totals"><td colspan="6">Balance</td>
+        <td class="num {{ 'neg' if balance_after < 0 }}">{{ balance_after | money }}</td></tr>
+    <tr class="totals"><td colspan="6">Amount due this period</td>
+        <td class="num">{{ amount_due | money }}</td></tr>
+  </table>
+
+  {% if balance_after < 0 %}
+  <p class="subtle">Your balance is negative this period (typically due to refunds exceeding
+  sales). Nothing is owed back to us — the deficit simply carries forward and is offset
+  against your future sales.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Import — CBS Settlement{% endblock %}
+{% block content %}
+<h1>Import Shopify order export</h1>
+<div class="card">
+  <p>Upload the order export CSV for the period. You'll confirm the column mapping
+     on the next screen (it's remembered for next time). Re-importing the same file is
+     safe — duplicate lines are detected and skipped, never double-counted.</p>
+  <p class="subtle">Shipping is excluded automatically: only line items are read, so
+     order-level shipping never enters the split base.</p>
+  <form method="post" action="{{ url_for('import_upload') }}" enctype="multipart/form-data">
+    <input type="file" name="csv_file" accept=".csv" required>
+    <button type="submit">Upload &amp; map columns</button>
+  </form>
+</div>
+
+<h2>Past imports</h2>
+<table>
+  <tr><th>#</th><th>File</th><th class="num">Rows</th><th class="num">New</th>
+      <th class="num">Duplicates skipped</th><th>When</th></tr>
+  {% for i in imports %}
+  <tr><td>{{ i.id }}</td><td>{{ i.filename }}</td><td class="num">{{ i.rows_total }}</td>
+      <td class="num">{{ i.rows_new }}</td><td class="num">{{ i.rows_dup }}</td>
+      <td>{{ i.imported_at }}</td></tr>
+  {% else %}
+  <tr><td colspan="6" class="subtle">Nothing imported yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

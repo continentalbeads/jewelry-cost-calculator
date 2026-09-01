@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Column mapping — CBS Settlement{% endblock %}
+{% block content %}
+<h1>Map CSV columns — {{ filename }}</h1>
+<p class="subtle">Best guesses are pre-selected from the headers. Map either a unit
+price (quantity × price is computed) or a line total. Map the line item ID if your
+export has one — it's the strongest duplicate-detection key.</p>
+
+<form method="post" action="{{ url_for('import_process') }}">
+  <input type="hidden" name="token" value="{{ token }}">
+  <input type="hidden" name="filename" value="{{ filename }}">
+  <table style="max-width:720px">
+    <tr><th>Field</th><th>CSV column</th></tr>
+    {% for field, label, required in fields %}
+    <tr>
+      <td>{{ label }}{% if required %} <span class="flag">*</span>{% endif %}</td>
+      <td>
+        <select name="map_{{ field }}">
+          <option value="">— not in this file —</option>
+          {% for h in headers %}
+          <option value="{{ h }}" {% if mapping.get(field) == h %}selected{% endif %}>{{ h }}</option>
+          {% endfor %}
+        </select>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <label><input type="checkbox" name="remember" checked> Remember this mapping for future imports</label>
+  <p><button type="submit">Import with this mapping</button>
+     <a class="btn secondary" href="{{ url_for('import_page') }}">Cancel</a></p>
+</form>
+{% endblock %}
